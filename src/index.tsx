@@ -24,6 +24,8 @@ type Contest = {
   org: string;
   slug: string;
   title: string;
+  competitionStart: number | null;
+  hasStarted: boolean;
 };
 
 type Task = {
@@ -109,6 +111,11 @@ function notebookToPython(panel: NotebookPanel): string {
     })
     .join('\n\n')
     .trim() + '\n';
+}
+
+function formatContestLabel(contest: Contest): string {
+  const value = contest.title || `${contest.org}/${contest.slug}`;
+  return contest.hasStarted ? value : `${value} (not started yet)`;
 }
 
 class NitroJudgeBody extends ReactWidget {
@@ -213,12 +220,13 @@ class NitroJudgeBody extends ReactWidget {
                 {this._contests.map(contest => {
                   const value = `${contest.org}/${contest.slug}`;
                   return (
-                    <option key={value} value={value}>
-                      {contest.title || value}
+                    <option disabled={!contest.hasStarted} key={value} value={value}>
+                      {formatContestLabel(contest)}
                     </option>
                   );
                 })}
               </select>
+              <p className="jp-NitroJudgeMuted">Upcoming contests are shown but unavailable until they start.</p>
             </label>
 
             <label className="jp-NitroJudgeFieldLabel">
@@ -471,7 +479,13 @@ class NitroJudgeBody extends ReactWidget {
   }
 
   private _canSubmit(): boolean {
-    if (!this._status.loggedIn || !this._selectedContest || !this._selectedTask || !this._outputPath) {
+    if (
+      !this._status.loggedIn ||
+      !this._selectedContest ||
+      !this._selectedContest.hasStarted ||
+      !this._selectedTask ||
+      !this._outputPath
+    ) {
       return false;
     }
     if (!this._outputPath.toLowerCase().endsWith('.csv')) {
@@ -577,6 +591,11 @@ class NitroJudgeBody extends ReactWidget {
     this._selectedContest = selected;
 
     if (!selected) {
+      this.update();
+      return;
+    }
+
+    if (!selected.hasStarted) {
       this.update();
       return;
     }

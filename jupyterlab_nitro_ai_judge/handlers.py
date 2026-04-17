@@ -4,6 +4,7 @@ import asyncio
 from functools import partial
 import os
 import tempfile
+import time
 from typing import Any
 
 import tornado.web
@@ -14,10 +15,24 @@ import nitro_cli
 
 
 def _serialize_competition(item: dict[str, Any]) -> dict[str, Any]:
+    raw_start = item.get("competitionStart")
+    start = raw_start
+    if isinstance(raw_start, str):
+        try:
+            start = int(raw_start)
+        except ValueError:
+            start = raw_start
+
+    has_started = True
+    if isinstance(start, (int, float)):
+        has_started = start <= int(time.time() * 1000)
+
     return {
         "org": item.get("organizationSlug") or "",
         "slug": item.get("competitionSlug") or "",
         "title": item.get("title") or "",
+        "competitionStart": start,
+        "hasStarted": has_started,
     }
 
 

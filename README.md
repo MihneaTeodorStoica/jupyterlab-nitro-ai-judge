@@ -16,7 +16,7 @@ JupyterLab extension that adds a notebook toolbar button, `Submit to Nitro AI Ju
 
 - Python 3.10+
 - JupyterLab 4.x
-- `nitro-ai-judge-cli` available in the same Python environment as JupyterLab
+- `nitro-ai-judge-cli>=0.1.4` available in the same Python environment as JupyterLab
 
 ## Install
 
@@ -68,7 +68,7 @@ PyPI release flow:
 python -m pip install -U build twine
 python -m build
 python -m twine check dist/*
-git tag v0.1.5
+git tag v0.1.6
 git push origin main --tags
 ```
 
