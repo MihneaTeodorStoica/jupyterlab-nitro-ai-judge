@@ -3,9 +3,8 @@
   overflow: auto;
 }
 
-.jp-Dialog .jp-NitroJudgePanel {
-  width: min(860px, 80vw);
-  max-height: 75vh;
+.jp-NitroJudgeRoot {
+  position: relative;
 }
 
 .jp-NitroJudgePanel h2,
@@ -158,6 +157,40 @@
 
 .jp-NitroJudgePickerNav {
   font-weight: 700;
+}
+
+.jp-NitroJudgeOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--jp-dialog-background) 90%, transparent);
+  z-index: 1;
+}
+
+.jp-NitroJudgeOverlayCard {
+  width: min(640px, 100%);
+  max-height: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 8px;
+  background: var(--jp-layout-color1);
+  box-shadow: var(--jp-elevation-z20);
+}
+
+.jp-NitroJudgeOverlayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jp-NitroJudgeOverlayHeader h3 {
+  margin: 0;
 }
 
 .jp-NitroJudgeMuted {

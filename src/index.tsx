@@ -5,9 +5,8 @@ import {
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 import {
-  Dialog,
-  ReactWidget,
-  showDialog
+  MainAreaWidget,
+  ReactWidget
 } from '@jupyterlab/apputils';
 import { PathExt, URLExt } from '@jupyterlab/coreutils';
 import { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
@@ -52,15 +51,27 @@ type SubmissionResult = {
   subtasks: SubmissionSubtask[];
 };
 
-type FilePickerValue = {
-  currentPath: string;
-  selectedPath: string | null;
-  selectedType: Contents.ContentType | null;
-};
-
 type FilePickerOptions = {
   acceptFile?: (item: Contents.IModel) => boolean;
   emptyMessage?: string;
+};
+
+type PickerEntry = {
+  name: string;
+  path: string;
+  type: Contents.ContentType;
+};
+
+type PickerState = {
+  currentPath: string;
+  emptyMessage: string;
+  entries: PickerEntry[];
+  error: string | null;
+  loading: boolean;
+  selectedPath: string | null;
+  selectedType: Contents.ContentType | null;
+  title: string;
+  acceptFile?: (item: Contents.IModel) => boolean;
 };
 
 let contestCache: Contest[] | null = null;
@@ -100,122 +111,6 @@ function notebookToPython(panel: NotebookPanel): string {
     .trim() + '\n';
 }
 
-class FilePickerBody extends ReactWidget {
-  constructor(
-    model: Contents.IModel,
-    currentPath: string,
-    options: FilePickerOptions = {}
-  ) {
-    super();
-    this._items = ((model.content as Contents.IModel[]) ?? []).filter(item => {
-      if (item.type === 'directory') {
-        return true;
-      }
-      return options.acceptFile ? options.acceptFile(item) : true;
-    });
-    this._currentPath = currentPath;
-    this._emptyMessage = options.emptyMessage ?? 'No matching files in this folder.';
-  }
-
-  getValue(): FilePickerValue {
-    return {
-      currentPath: this._currentPath,
-      selectedPath: this._selectedPath,
-      selectedType: this._selectedType
-    };
-  }
-
-  render(): React.JSX.Element {
-    const entries = this._items.slice().sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'directory' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    const parentPath = this._currentPath ? PathExt.dirname(this._currentPath) : null;
-
-    return (
-      <div>
-        <p className="jp-NitroJudgeMuted">Current path: {this._currentPath || '/'}</p>
-        <div className="jp-NitroJudgePickerList">
-          {parentPath !== null ? (
-            <button
-              className="jp-NitroJudgePickerItem jp-NitroJudgePickerNav"
-              onClick={() => {
-                this._selectedPath = parentPath === '.' ? '' : parentPath;
-                this._selectedType = 'directory';
-                this.update();
-              }}
-              type="button"
-            >
-              ../
-            </button>
-          ) : null}
-          {entries.length === 0 ? <p className="jp-NitroJudgeMuted">{this._emptyMessage}</p> : null}
-          {entries.map(item => {
-            const isSelected = item.path === this._selectedPath;
-            return (
-              <button
-                key={item.path}
-                className="jp-NitroJudgePickerItem"
-                data-selected={isSelected}
-                onClick={() => {
-                  this._selectedPath = item.path;
-                  this._selectedType = item.type;
-                  this.update();
-                }}
-                type="button"
-              >
-                {item.type === 'directory' ? `${item.name}/` : item.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  private _items: Contents.IModel[];
-  private _currentPath: string;
-  private _emptyMessage: string;
-  private _selectedPath: string | null = null;
-  private _selectedType: Contents.ContentType | null = null;
-}
-
-async function pickFile(
-  app: JupyterFrontEnd,
-  startPath: string,
-  title: string,
-  options: FilePickerOptions = {}
-): Promise<string | null> {
-  let currentPath = startPath;
-
-  while (true) {
-    const model = await app.serviceManager.contents.get(currentPath, { content: true });
-    if (model.type !== 'directory') {
-      throw new Error(`Path is not a directory: ${currentPath}`);
-    }
-
-    const body = new FilePickerBody(model, currentPath, options);
-    const buttons = [Dialog.cancelButton({ label: 'Close' }), Dialog.okButton({ label: 'Select' })];
-    const result = await showDialog<FilePickerValue>({ title, body, buttons });
-    const value = result.value;
-
-    if (!result.button.accept || !value) {
-      return null;
-    }
-
-    if (result.button.label === 'Select' && value.selectedPath && value.selectedType === 'directory') {
-      currentPath = value.selectedPath;
-      continue;
-    }
-
-    if (result.button.label === 'Select' && value.selectedPath && value.selectedType === 'file') {
-      return value.selectedPath;
-    }
-  }
-}
-
 class NitroJudgeBody extends ReactWidget {
   constructor(app: JupyterFrontEnd, panel: NotebookPanel) {
     super();
@@ -237,12 +132,13 @@ class NitroJudgeBody extends ReactWidget {
     const selectedContestValue = this._selectedContest
       ? `${this._selectedContest.org}/${this._selectedContest.slug}`
       : '';
+    const pickerState = this._pickerState;
 
     return (
-      <div>
-          <p>
-            Notebook: <code>{this._panel.context.path}</code>
-          </p>
+      <div className="jp-NitroJudgeRoot">
+        <p>
+          Notebook: <code>{this._panel.context.path}</code>
+        </p>
 
         {this._error ? (
           <div className="jp-NitroJudgeMessage" data-kind="error">
@@ -496,6 +392,66 @@ class NitroJudgeBody extends ReactWidget {
             </table>
           </section>
         ) : null}
+
+        {pickerState ? (
+          <div className="jp-NitroJudgeOverlay" role="dialog" aria-modal="true" aria-label={pickerState.title}>
+            <div className="jp-NitroJudgeOverlayCard">
+              <div className="jp-NitroJudgeOverlayHeader">
+                <h3>{pickerState.title}</h3>
+                <button onClick={() => this._closePicker()} type="button">
+                  Close
+                </button>
+              </div>
+              <p className="jp-NitroJudgeMuted">Current path: {pickerState.currentPath || '/'}</p>
+              {pickerState.error ? (
+                <div className="jp-NitroJudgeMessage" data-kind="error">
+                  {pickerState.error}
+                </div>
+              ) : null}
+              {pickerState.loading ? (
+                <div className="jp-NitroJudgeMessage" data-kind="info">
+                  Loading files...
+                </div>
+              ) : null}
+              <div className="jp-NitroJudgePickerList">
+                {pickerState.currentPath ? (
+                  <button className="jp-NitroJudgePickerItem jp-NitroJudgePickerNav" onClick={() => void this._goUpPicker()} type="button">
+                    ../
+                  </button>
+                ) : null}
+                {!pickerState.loading && pickerState.entries.length === 0 ? (
+                  <p className="jp-NitroJudgeMuted">{pickerState.emptyMessage}</p>
+                ) : null}
+                {pickerState.entries.map(item => {
+                  const isSelected = item.path === pickerState.selectedPath;
+                  return (
+                    <button
+                      key={item.path}
+                      className="jp-NitroJudgePickerItem"
+                      data-selected={isSelected}
+                      onClick={() => void this._handlePickerItem(item)}
+                      type="button"
+                    >
+                      {item.type === 'directory' ? `${item.name}/` : item.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="jp-NitroJudgeActions">
+                <button onClick={() => this._closePicker()} type="button">
+                  Close
+                </button>
+                <button
+                  disabled={pickerState.loading || pickerState.selectedType !== 'file'}
+                  onClick={() => this._confirmPicker()}
+                  type="button"
+                >
+                  Select
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -629,7 +585,7 @@ class NitroJudgeBody extends ReactWidget {
 
   private async _pickOutput(): Promise<void> {
     try {
-      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick output CSV', {
+      const selected = await this._openPicker('Pick output CSV', {
         acceptFile: item => item.name.toLowerCase().endsWith('.csv'),
         emptyMessage: 'No CSV files in this folder. You can still open another folder or go up.'
       });
@@ -645,7 +601,7 @@ class NitroJudgeBody extends ReactWidget {
 
   private async _pickSource(): Promise<void> {
     try {
-      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick source file', {
+      const selected = await this._openPicker('Pick source file', {
         acceptFile: item => item.name.toLowerCase().endsWith('.py'),
         emptyMessage: 'No Python files in this folder. You can still open another folder or go up.'
       });
@@ -717,6 +673,137 @@ class NitroJudgeBody extends ReactWidget {
     this.update();
   }
 
+  private async _openPicker(title: string, options: FilePickerOptions = {}): Promise<string | null> {
+    if (this._pickerResolver) {
+      this._pickerResolver(null);
+    }
+
+    const promise = new Promise<string | null>(resolve => {
+      this._pickerResolver = resolve;
+    });
+
+    this._pickerState = {
+      acceptFile: options.acceptFile,
+      currentPath: notebookDirectory(this._panel),
+      emptyMessage: options.emptyMessage ?? 'No matching files in this folder.',
+      entries: [],
+      error: null,
+      loading: true,
+      selectedPath: null,
+      selectedType: null,
+      title
+    };
+    this.update();
+    await this._loadPickerDirectory(this._pickerState.currentPath);
+    return promise;
+  }
+
+  private async _loadPickerDirectory(path: string): Promise<void> {
+    if (!this._pickerState) {
+      return;
+    }
+
+    this._pickerState = {
+      ...this._pickerState,
+      currentPath: path,
+      error: null,
+      loading: true,
+      selectedPath: null,
+      selectedType: null
+    };
+    this.update();
+
+    try {
+      const model = await this._app.serviceManager.contents.get(path, { content: true });
+      if (model.type !== 'directory') {
+        throw new Error(`Path is not a directory: ${path}`);
+      }
+
+      const entries = ((model.content as Contents.IModel[]) ?? [])
+        .filter(item => item.type === 'directory' || !this._pickerState?.acceptFile || this._pickerState.acceptFile(item))
+        .map(item => ({ name: item.name, path: item.path, type: item.type }))
+        .sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === 'directory' ? -1 : 1;
+          }
+          return a.name.localeCompare(b.name);
+        });
+
+      if (!this._pickerState) {
+        return;
+      }
+
+      this._pickerState = {
+        ...this._pickerState,
+        currentPath: path,
+        entries,
+        loading: false
+      };
+    } catch (error) {
+      if (!this._pickerState) {
+        return;
+      }
+
+      this._pickerState = {
+        ...this._pickerState,
+        currentPath: path,
+        entries: [],
+        error: this._asMessage(error),
+        loading: false
+      };
+    }
+
+    this.update();
+  }
+
+  private async _handlePickerItem(item: PickerEntry): Promise<void> {
+    if (!this._pickerState) {
+      return;
+    }
+
+    if (item.type === 'directory') {
+      await this._loadPickerDirectory(item.path);
+      return;
+    }
+
+    this._pickerState = {
+      ...this._pickerState,
+      selectedPath: item.path,
+      selectedType: item.type
+    };
+    this.update();
+  }
+
+  private async _goUpPicker(): Promise<void> {
+    if (!this._pickerState || !this._pickerState.currentPath) {
+      return;
+    }
+
+    const parentPath = PathExt.dirname(this._pickerState.currentPath);
+    await this._loadPickerDirectory(parentPath === '.' ? '' : parentPath);
+  }
+
+  private _confirmPicker(): void {
+    if (!this._pickerState || this._pickerState.selectedType !== 'file' || !this._pickerState.selectedPath) {
+      return;
+    }
+
+    const selectedPath = this._pickerState.selectedPath;
+    const resolve = this._pickerResolver;
+    this._pickerState = null;
+    this._pickerResolver = null;
+    this.update();
+    resolve?.(selectedPath);
+  }
+
+  private _closePicker(): void {
+    const resolve = this._pickerResolver;
+    this._pickerState = null;
+    this._pickerResolver = null;
+    this.update();
+    resolve?.(null);
+  }
+
   private _app: JupyterFrontEnd;
   private _panel: NotebookPanel;
   private _initialized = false;
@@ -734,7 +821,18 @@ class NitroJudgeBody extends ReactWidget {
   private _busy = false;
   private _busyMessage: string | null = null;
   private _error: string | null = null;
+  private _pickerResolver: ((value: string | null) => void) | null = null;
+  private _pickerState: PickerState | null = null;
   private _result: SubmissionResult | null = null;
+}
+
+function createJudgePanel(app: JupyterFrontEnd, notebook: NotebookPanel): MainAreaWidget<NitroJudgeBody> {
+  const content = new NitroJudgeBody(app, notebook);
+  const widget = new MainAreaWidget({ content });
+  widget.id = `nitro-ai-judge:${notebook.id}:${Date.now()}`;
+  widget.title.label = `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`;
+  widget.title.closable = true;
+  return widget;
 }
 
 const plugin: JupyterFrontEndPlugin<void> = {
@@ -749,13 +847,11 @@ const plugin: JupyterFrontEndPlugin<void> = {
         new ToolbarButton({
           label: 'Submit to Nitro AI Judge',
           onClick: () => {
-            void showDialog({
-              title: `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`,
-              body: new NitroJudgeBody(app, notebook),
-              buttons: [Dialog.cancelButton({ label: 'Close' })]
-            });
+            const widget = createJudgePanel(app, notebook);
+            app.shell.add(widget, 'main');
+            app.shell.activateById(widget.id);
           },
-          tooltip: 'Open Nitro AI Judge submission popup'
+          tooltip: 'Open Nitro AI Judge submission tab'
         })
       );
     });
