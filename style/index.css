@@ -156,6 +156,10 @@
   background: color-mix(in srgb, var(--jp-brand-color1) 15%, var(--jp-layout-color2));
 }
 
+.jp-NitroJudgePickerNav {
+  font-weight: 700;
+}
+
 .jp-NitroJudgeMuted {
   color: var(--jp-ui-font-color2);
   font-size: 0.95em;

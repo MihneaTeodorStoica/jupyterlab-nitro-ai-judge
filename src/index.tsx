@@ -58,6 +58,13 @@ type FilePickerValue = {
   selectedType: Contents.ContentType | null;
 };
 
+type FilePickerOptions = {
+  acceptFile?: (item: Contents.IModel) => boolean;
+  emptyMessage?: string;
+};
+
+let contestCache: Contest[] | null = null;
+
 async function requestAPI<T>(
   endPoint: string,
   init: RequestInit = {}
@@ -97,10 +104,7 @@ class FilePickerBody extends ReactWidget {
   constructor(
     model: Contents.IModel,
     currentPath: string,
-    options: {
-      acceptFile?: (item: Contents.IModel) => boolean;
-      emptyMessage?: string;
-    } = {}
+    options: FilePickerOptions = {}
   ) {
     super();
     this._items = ((model.content as Contents.IModel[]) ?? []).filter(item => {
@@ -128,15 +132,28 @@ class FilePickerBody extends ReactWidget {
       }
       return a.name.localeCompare(b.name);
     });
+    const parentPath = this._currentPath ? PathExt.dirname(this._currentPath) : null;
 
     return (
       <div>
         <p className="jp-NitroJudgeMuted">Current path: {this._currentPath || '/'}</p>
         <div className="jp-NitroJudgePickerList">
+          {parentPath !== null ? (
+            <button
+              className="jp-NitroJudgePickerItem jp-NitroJudgePickerNav"
+              onClick={() => {
+                this._selectedPath = parentPath === '.' ? '' : parentPath;
+                this._selectedType = 'directory';
+                this.update();
+              }}
+              type="button"
+            >
+              ../
+            </button>
+          ) : null}
           {entries.length === 0 ? <p className="jp-NitroJudgeMuted">{this._emptyMessage}</p> : null}
           {entries.map(item => {
             const isSelected = item.path === this._selectedPath;
-            const prefix = item.type === 'directory' ? 'Open folder' : 'Select file';
             return (
               <button
                 key={item.path}
@@ -149,7 +166,7 @@ class FilePickerBody extends ReactWidget {
                 }}
                 type="button"
               >
-                {prefix}: {item.name}
+                {item.type === 'directory' ? `${item.name}/` : item.name}
               </button>
             );
           })}
@@ -169,10 +186,7 @@ async function pickFile(
   app: JupyterFrontEnd,
   startPath: string,
   title: string,
-  options: {
-    acceptFile?: (item: Contents.IModel) => boolean;
-    emptyMessage?: string;
-  } = {}
+  options: FilePickerOptions = {}
 ): Promise<string | null> {
   let currentPath = startPath;
 
@@ -183,12 +197,7 @@ async function pickFile(
     }
 
     const body = new FilePickerBody(model, currentPath, options);
-    const buttons = [
-      Dialog.cancelButton(),
-      Dialog.okButton({ label: 'Up' }),
-      Dialog.okButton({ label: 'Open' }),
-      Dialog.okButton({ label: 'Select' })
-    ];
+    const buttons = [Dialog.cancelButton({ label: 'Close' }), Dialog.okButton({ label: 'Select' })];
     const result = await showDialog<FilePickerValue>({ title, body, buttons });
     const value = result.value;
 
@@ -196,15 +205,7 @@ async function pickFile(
       return null;
     }
 
-    if (result.button.label === 'Up') {
-      currentPath = PathExt.dirname(currentPath);
-      if (currentPath === '.') {
-        currentPath = '';
-      }
-      continue;
-    }
-
-    if (result.button.label === 'Open' && value.selectedPath && value.selectedType === 'directory') {
+    if (result.button.label === 'Select' && value.selectedPath && value.selectedType === 'directory') {
       currentPath = value.selectedPath;
       continue;
     }
@@ -429,7 +430,11 @@ class NitroJudgeBody extends ReactWidget {
             <button disabled={this._busy || !this._canSubmit()} onClick={() => void this._submit()} type="button">
               Submit and Wait for Feedback
             </button>
-            <button disabled={this._busy || !this._status.loggedIn} onClick={() => void this._loadContests()} type="button">
+            <button
+              disabled={this._busy || !this._status.loggedIn}
+              onClick={() => void this._loadContests({ force: true })}
+              type="button"
+            >
               Refresh contests
             </button>
           </div>
@@ -505,6 +510,9 @@ class NitroJudgeBody extends ReactWidget {
     if (this._sourceMode === 'file' && !this._sourcePath) {
       return false;
     }
+    if (this._sourceMode === 'file' && !this._sourcePath.toLowerCase().endsWith('.py')) {
+      return false;
+    }
     return true;
   }
 
@@ -537,7 +545,7 @@ class NitroJudgeBody extends ReactWidget {
         method: 'POST'
       });
       this._password = '';
-      await this._loadContests();
+      await this._loadContests({ force: true });
     } catch (error) {
       this._error = this._asMessage(error);
     } finally {
@@ -545,13 +553,30 @@ class NitroJudgeBody extends ReactWidget {
     }
   }
 
-  private async _loadContests(): Promise<void> {
+  private async _loadContests(options: { force?: boolean } = {}): Promise<void> {
+    if (!options.force && contestCache) {
+      this._contests = contestCache;
+      if (this._selectedContest) {
+        const refreshed = this._contests.find(
+          item => item.org === this._selectedContest?.org && item.slug === this._selectedContest?.slug
+        );
+        this._selectedContest = refreshed ?? null;
+        if (this._selectedContest) {
+          await this._selectContest(`${this._selectedContest.org}/${this._selectedContest.slug}`);
+          return;
+        }
+      }
+      this.update();
+      return;
+    }
+
     await this._setBusy('Loading contests...');
     this._error = null;
 
     try {
       const response = await requestAPI<{ items: Contest[] }>('contests');
       this._contests = response.items;
+      contestCache = response.items;
       if (this._selectedContest) {
         const refreshed = this._contests.find(
           item => item.org === this._selectedContest?.org && item.slug === this._selectedContest?.slug
@@ -620,7 +645,10 @@ class NitroJudgeBody extends ReactWidget {
 
   private async _pickSource(): Promise<void> {
     try {
-      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick source file');
+      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick source file', {
+        acceptFile: item => item.name.toLowerCase().endsWith('.py'),
+        emptyMessage: 'No Python files in this folder. You can still open another folder or go up.'
+      });
       if (selected) {
         this._sourcePath = selected;
         this.update();

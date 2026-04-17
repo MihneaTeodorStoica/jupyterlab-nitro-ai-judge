@@ -1,6 +1,6 @@
 {
   "name": "jupyterlab-nitro-ai-judge",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "JupyterLab extension for Nitro AI Judge submissions from notebooks",
   "keywords": [
     "jupyter",
@@ -8,9 +8,9 @@
     "nitro",
     "judge"
   ],
-  "homepage": "https://github.com/your-org/jupyterlab-nitro-ai-judge",
+  "homepage": "https://github.com/MihneaTeodorStoica/jupyterlab-nitro-ai-judge",
   "bugs": {
-    "url": "https://github.com/your-org/jupyterlab-nitro-ai-judge/issues"
+    "url": "https://github.com/MihneaTeodorStoica/jupyterlab-nitro-ai-judge/issues"
   },
   "license": "MIT",
   "author": "Mihnea",
@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "build:prod": "tsc && jupyter-labextension build .",
+    "build:prod": "tsc && build-labextension --core-path build-core .",
     "clean": "rimraf lib tsconfig.tsbuildinfo jupyterlab_nitro_ai_judge/labextension",
     "watch": "tsc -w --preserveWatchOutput"
   },
@@ -50,7 +50,7 @@
     "extension": true,
     "outputDir": "jupyterlab_nitro_ai_judge/labextension",
     "_build": {
-      "load": "static/remoteEntry.0351f33f1291303ad46f.js",
+      "load": "static/remoteEntry.b9d83a8f6e6bdfc00c65.js",
       "extension": "./extension",
       "style": "./style"
     }
