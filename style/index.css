@@ -1,5 +1,5 @@
 .jp-NitroJudgePanel {
-  padding: 20px;
+  padding: 16px;
   overflow: auto;
 }
 
@@ -7,54 +7,86 @@
   position: relative;
 }
 
-.jp-NitroJudgePanel h2,
 .jp-NitroJudgePanel h3 {
-  margin: 0 0 12px;
+  margin: 0;
 }
 
-.jp-NitroJudgePanel h3 {
-  margin-top: 20px;
+.jp-NitroJudgeNotebookPath {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
 }
 
 .jp-NitroJudgePanel p {
-  margin: 0 0 12px;
+  margin: 0;
   color: var(--jp-ui-font-color1);
 }
 
 .jp-NitroJudgePanel section {
-  margin-bottom: 20px;
-  padding: 16px;
+  margin-bottom: 16px;
+  padding: 12px 0 0;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--jp-layout-color1);
+}
+
+.jp-NitroJudgeSectionHeader {
+  padding: 0 12px 12px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeSectionHeader p {
+  margin-top: 4px;
+}
+
+.jp-NitroJudgeStatusLine,
+.jp-NitroJudgeGrid,
+.jp-NitroJudgeSummary,
+.jp-NitroJudgeTable,
+.jp-NitroJudgeSubheading {
+  margin: 12px;
+}
+
+.jp-NitroJudgeStatusLine {
+  padding-top: 4px;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: 8px;
 }
 
 .jp-NitroJudgeGrid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
-.jp-NitroJudgeGrid label {
+.jp-NitroJudgeFieldLabel {
   display: grid;
-  gap: 6px;
+  gap: 4px;
+}
+
+.jp-NitroJudgeFieldTitle {
+  font-size: var(--jp-ui-font-size1);
   font-weight: 600;
+  color: var(--jp-ui-font-color1);
 }
 
 .jp-NitroJudgeGrid input,
 .jp-NitroJudgeGrid select,
 .jp-NitroJudgeGrid textarea {
   width: 100%;
-  padding: 8px 10px;
+  min-height: 28px;
+  padding: 4px 8px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--jp-input-background);
   color: var(--jp-ui-font-color1);
+  box-sizing: border-box;
 }
 
 .jp-NitroJudgeRow {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 6px;
+  align-items: stretch;
 }
 
 .jp-NitroJudgeRow input {
@@ -63,19 +95,35 @@
 
 .jp-NitroJudgeActions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 16px;
+  margin: 12px;
 }
 
 .jp-NitroJudgeActions button,
-.jp-NitroJudgePickerItem {
-  padding: 8px 12px;
+.jp-NitroJudgePickerItem,
+.jp-NitroJudgeOverlayHeader button {
+  min-height: 28px;
+  padding: 4px 12px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--jp-layout-color2);
   color: var(--jp-ui-font-color1);
   cursor: pointer;
+}
+
+.jp-NitroJudgeActions button:first-child,
+.jp-NitroJudgeOverlay .jp-NitroJudgeActions button:last-child {
+  background: var(--jp-brand-color1);
+  border-color: var(--jp-brand-color1);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-NitroJudgeOverlayHeader button,
+.jp-NitroJudgeOverlay .jp-NitroJudgeActions button:first-child {
+  background: var(--jp-layout-color2);
+  border-color: var(--jp-border-color2);
+  color: var(--jp-ui-font-color1);
 }
 
 .jp-NitroJudgeActions button[disabled] {
@@ -84,8 +132,9 @@
 }
 
 .jp-NitroJudgeMessage {
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 0;
   margin-bottom: 12px;
 }
 
@@ -101,12 +150,12 @@
 .jp-NitroJudgeSummary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .jp-NitroJudgeStat {
-  padding: 12px;
-  border-radius: 6px;
+  padding: 10px;
+  border-radius: 0;
   background: var(--jp-layout-color2);
   border: 1px solid var(--jp-border-color2);
 }
@@ -130,22 +179,79 @@
   vertical-align: top;
 }
 
-.jp-NitroJudgeRadioGroup {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
+.jp-NitroJudgeSubheading {
+  font-size: var(--jp-ui-font-size1);
+  font-weight: 600;
 }
 
-.jp-NitroJudgeRadioGroup label {
+.jp-NitroJudgeSourceGroup {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.jp-NitroJudgeSourceGroup .jp-NitroJudgeFieldTitle {
+  margin-bottom: 6px;
+}
+
+.jp-NitroJudgeRadioGroup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--jp-border-color2);
+  background: var(--jp-layout-color1);
+}
+
+.jp-NitroJudgeSourceOption {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
+  padding: 6px 8px;
   font-weight: 400;
+  cursor: pointer;
+  min-height: 0;
+}
+
+.jp-NitroJudgeSourceOption + .jp-NitroJudgeSourceOption {
+  border-left: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeSourceOption[data-selected='true'] {
+  background: color-mix(in srgb, var(--jp-brand-color1) 10%, var(--jp-layout-color1));
+}
+
+.jp-NitroJudgeSourceOption input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jp-NitroJudgeSourceOptionTitle,
+.jp-NitroJudgeSourceOptionDetail {
+  display: block;
+}
+
+.jp-NitroJudgeSourceOptionTitle {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.jp-NitroJudgeSourceOptionDetail {
+  margin-top: 2px;
+  color: var(--jp-ui-font-color2);
+  font-size: 0.9em;
+  line-height: 1.2;
+}
+
+.jp-NitroJudgeSourceHint {
+  padding: 8px 10px;
+  border: 1px solid var(--jp-border-color2);
+  background: var(--jp-layout-color2);
 }
 
 .jp-NitroJudgePickerList {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   max-height: 320px;
   overflow: auto;
 }
@@ -177,7 +283,7 @@
   flex-direction: column;
   padding: 16px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--jp-layout-color1);
   box-shadow: var(--jp-elevation-z20);
 }
@@ -201,6 +307,15 @@
 @media (max-width: 768px) {
   .jp-NitroJudgePanel {
     padding: 12px;
+  }
+
+  .jp-NitroJudgeRadioGroup {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-NitroJudgeSourceOption + .jp-NitroJudgeSourceOption {
+    border-left: 0;
+    border-top: 1px solid var(--jp-border-color2);
   }
 
   .jp-NitroJudgeRow {

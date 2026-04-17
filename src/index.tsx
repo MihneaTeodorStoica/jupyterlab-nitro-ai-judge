@@ -136,7 +136,7 @@ class NitroJudgeBody extends ReactWidget {
 
     return (
       <div className="jp-NitroJudgeRoot">
-        <p>
+        <p className="jp-NitroJudgeNotebookPath">
           Notebook: <code>{this._panel.context.path}</code>
         </p>
 
@@ -153,15 +153,18 @@ class NitroJudgeBody extends ReactWidget {
         ) : null}
 
         <section>
-          <h3>Login</h3>
+          <div className="jp-NitroJudgeSectionHeader">
+            <h3>Login</h3>
+            <p className="jp-NitroJudgeMuted">Sign in to load your contests and tasks.</p>
+          </div>
           {this._status.loggedIn ? (
-            <p>
+            <p className="jp-NitroJudgeStatusLine">
               Logged in as <strong>{this._status.username}</strong>.
             </p>
           ) : (
             <div className="jp-NitroJudgeGrid">
-              <label>
-                Username
+              <label className="jp-NitroJudgeFieldLabel">
+                <span className="jp-NitroJudgeFieldTitle">Username</span>
                 <input
                   value={this._username}
                   onChange={event => {
@@ -172,8 +175,8 @@ class NitroJudgeBody extends ReactWidget {
                   type="text"
                 />
               </label>
-              <label>
-                Password
+              <label className="jp-NitroJudgeFieldLabel">
+                <span className="jp-NitroJudgeFieldTitle">Password</span>
                 <input
                   value={this._password}
                   onChange={event => {
@@ -194,10 +197,13 @@ class NitroJudgeBody extends ReactWidget {
         </section>
 
         <section>
-          <h3>Submission</h3>
+          <div className="jp-NitroJudgeSectionHeader">
+            <h3>Submission</h3>
+            <p className="jp-NitroJudgeMuted">Choose the task, output file, and source to submit.</p>
+          </div>
           <div className="jp-NitroJudgeGrid">
-            <label>
-              Contest
+            <label className="jp-NitroJudgeFieldLabel">
+              <span className="jp-NitroJudgeFieldTitle">Contest</span>
               <select
                 disabled={!this._status.loggedIn || this._busy}
                 onChange={event => void this._selectContest(event.currentTarget.value)}
@@ -215,8 +221,8 @@ class NitroJudgeBody extends ReactWidget {
               </select>
             </label>
 
-            <label>
-              Task
+            <label className="jp-NitroJudgeFieldLabel">
+              <span className="jp-NitroJudgeFieldTitle">Task</span>
               <select
                 disabled={!this._selectedContest || this._busy}
                 onChange={event => {
@@ -235,8 +241,8 @@ class NitroJudgeBody extends ReactWidget {
               </select>
             </label>
 
-            <label>
-              Output CSV
+            <label className="jp-NitroJudgeFieldLabel">
+              <span className="jp-NitroJudgeFieldTitle">Output CSV</span>
               <div className="jp-NitroJudgeRow">
                 <input
                   onChange={event => {
@@ -254,10 +260,10 @@ class NitroJudgeBody extends ReactWidget {
               <p className="jp-NitroJudgeMuted">Choose a `.csv` file from the notebook folder tree.</p>
             </label>
 
-            <div>
-              <label>Source code</label>
-              <div className="jp-NitroJudgeRadioGroup">
-                <label>
+            <fieldset className="jp-NitroJudgeSourceGroup">
+              <legend className="jp-NitroJudgeFieldTitle">Source code</legend>
+              <div className="jp-NitroJudgeRadioGroup" role="radiogroup" aria-label="Source code mode">
+                <label className="jp-NitroJudgeSourceOption" data-selected={this._sourceMode === 'notebook'}>
                   <input
                     checked={this._sourceMode === 'notebook'}
                     name="nitro-source-mode"
@@ -267,9 +273,12 @@ class NitroJudgeBody extends ReactWidget {
                     }}
                     type="radio"
                   />
-                  Current notebook as Python
+                  <span>
+                    <span className="jp-NitroJudgeSourceOptionTitle">Current notebook</span>
+                    <span className="jp-NitroJudgeSourceOptionDetail">Export code cells as a temporary Python file.</span>
+                  </span>
                 </label>
-                <label>
+                <label className="jp-NitroJudgeSourceOption" data-selected={this._sourceMode === 'file'}>
                   <input
                     checked={this._sourceMode === 'file'}
                     name="nitro-source-mode"
@@ -279,14 +288,17 @@ class NitroJudgeBody extends ReactWidget {
                     }}
                     type="radio"
                   />
-                  Source file
+                  <span>
+                    <span className="jp-NitroJudgeSourceOptionTitle">Python source file</span>
+                    <span className="jp-NitroJudgeSourceOptionDetail">Pick an existing `.py` file from the notebook folder tree.</span>
+                  </span>
                 </label>
               </div>
-            </div>
+            </fieldset>
 
-            {this._sourceMode === 'file' ? (
-              <label>
-                Source file
+            <label className="jp-NitroJudgeFieldLabel">
+              <span className="jp-NitroJudgeFieldTitle">Source file</span>
+              {this._sourceMode === 'file' ? (
                 <div className="jp-NitroJudgeRow">
                   <input
                     onChange={event => {
@@ -301,15 +313,15 @@ class NitroJudgeBody extends ReactWidget {
                     Browse
                   </button>
                 </div>
-              </label>
-            ) : (
-              <p className="jp-NitroJudgeMuted">
-                The current notebook will be exported from code cells into a temporary Python file.
-              </p>
-            )}
+              ) : (
+                <p className="jp-NitroJudgeMuted jp-NitroJudgeSourceHint">
+                  The current notebook will be exported from code cells into a temporary Python file.
+                </p>
+              )}
+            </label>
 
-            <label>
-              Note
+            <label className="jp-NitroJudgeFieldLabel">
+              <span className="jp-NitroJudgeFieldTitle">Note</span>
               <textarea
                 onChange={event => {
                   this._note = event.currentTarget.value;
@@ -338,7 +350,9 @@ class NitroJudgeBody extends ReactWidget {
 
         {this._result ? (
           <section>
-            <h3>Feedback</h3>
+            <div className="jp-NitroJudgeSectionHeader">
+              <h3>Feedback</h3>
+            </div>
             <div className="jp-NitroJudgeSummary">
               <div className="jp-NitroJudgeStat">
                 Submission
@@ -358,7 +372,7 @@ class NitroJudgeBody extends ReactWidget {
               </div>
             </div>
 
-            <h3>Subtasks</h3>
+            <h3 className="jp-NitroJudgeSubheading">Subtasks</h3>
             <table className="jp-NitroJudgeTable">
               <thead>
                 <tr>
