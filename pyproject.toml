@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.27", "hatch-jupyter-builder>=0.9.1", "jupyterlab>=4.0.0,<5"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupyterlab-nitro-ai-judge"
+version = "0.1.0"
+description = "JupyterLab extension for submitting Nitro AI Judge notebook solutions"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+  { name = "Mihnea" }
+]
+keywords = ["jupyterlab", "nitro", "judge", "notebook"]
+classifiers = [
+  "Framework :: Jupyter :: JupyterLab",
+  "Framework :: Jupyter :: JupyterLab :: 4",
+  "Framework :: Jupyter :: JupyterLab :: Extensions",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+dependencies = [
+  "jupyter_server>=2.0.0,<3",
+  "jupyterlab>=4.0.0,<5",
+  "nitro-ai-judge-cli>=0.1.2"
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/jupyterlab-nitro-ai-judge"
+Repository = "https://github.com/your-org/jupyterlab-nitro-ai-judge"
+Issues = "https://github.com/your-org/jupyterlab-nitro-ai-judge/issues"
+
+[tool.hatch.build.targets.wheel.shared-data]
+"jupyterlab_nitro_ai_judge/labextension" = "share/jupyter/labextensions/jupyterlab-nitro-ai-judge"
+"install.json" = "share/jupyter/labextensions/jupyterlab-nitro-ai-judge/install.json"
+"jupyter-config/jupyter_server_config.d/jupyterlab_nitro_ai_judge.json" = "etc/jupyter/jupyter_server_config.d/jupyterlab_nitro_ai_judge.json"
+
+[tool.hatch.build.targets.sdist]
+artifacts = [
+  "jupyterlab_nitro_ai_judge/labextension"
+]
+exclude = [
+  ".github",
+  ".venv",
+  "node_modules"
+]
+
+[tool.hatch.build.hooks.jupyter-builder]
+dependencies = ["hatch-jupyter-builder>=0.9.1", "jupyterlab>=4.0.0,<5"]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+  "jupyterlab_nitro_ai_judge/labextension/static/style.js",
+  "jupyterlab_nitro_ai_judge/labextension/package.json"
+]
+skip-if-exists = [
+  "jupyterlab_nitro_ai_judge/labextension/package.json"
+]
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+build_cmd = "build:prod"
+npm = ["npm"]

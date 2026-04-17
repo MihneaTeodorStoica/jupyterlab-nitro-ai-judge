@@ -1,0 +1,5 @@
+{
+  "packageManager": "python",
+  "packageName": "jupyterlab-nitro-ai-judge",
+  "uninstallInstructions": "python -m pip uninstall jupyterlab-nitro-ai-judge"
+}

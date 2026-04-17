@@ -1,0 +1,58 @@
+{
+  "name": "jupyterlab-nitro-ai-judge",
+  "version": "0.1.0",
+  "description": "JupyterLab extension for Nitro AI Judge submissions from notebooks",
+  "keywords": [
+    "jupyter",
+    "jupyterlab",
+    "nitro",
+    "judge"
+  ],
+  "homepage": "https://github.com/your-org/jupyterlab-nitro-ai-judge",
+  "bugs": {
+    "url": "https://github.com/your-org/jupyterlab-nitro-ai-judge/issues"
+  },
+  "license": "MIT",
+  "author": "Mihnea",
+  "files": [
+    "lib/**/*",
+    "style/**/*"
+  ],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "style": "style/index.css",
+  "sideEffects": [
+    "style/index.css"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:prod": "tsc && jupyter-labextension build .",
+    "clean": "rimraf lib tsconfig.tsbuildinfo jupyterlab_nitro_ai_judge/labextension",
+    "watch": "tsc -w --preserveWatchOutput"
+  },
+  "dependencies": {
+    "@jupyterlab/application": "^4.2.0",
+    "@jupyterlab/apputils": "^4.3.0",
+    "@jupyterlab/coreutils": "^6.3.0",
+    "@jupyterlab/notebook": "^4.3.0",
+    "@jupyterlab/services": "^7.3.0",
+    "@jupyterlab/ui-components": "^4.3.0",
+    "@lumino/widgets": "^2.7.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@jupyterlab/builder": "^4.5.6",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.3"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "outputDir": "jupyterlab_nitro_ai_judge/labextension",
+    "_build": {
+      "load": "static/remoteEntry.0351f33f1291303ad46f.js",
+      "extension": "./extension",
+      "style": "./style"
+    }
+  }
+}

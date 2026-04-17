@@ -1,0 +1,168 @@
+.jp-NitroJudgePanel {
+  padding: 20px;
+  overflow: auto;
+}
+
+.jp-NitroJudgePanel h2,
+.jp-NitroJudgePanel h3 {
+  margin: 0 0 12px;
+}
+
+.jp-NitroJudgePanel h3 {
+  margin-top: 20px;
+}
+
+.jp-NitroJudgePanel p {
+  margin: 0 0 12px;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-NitroJudgePanel section {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 8px;
+  background: var(--jp-layout-color1);
+}
+
+.jp-NitroJudgeGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.jp-NitroJudgeGrid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.jp-NitroJudgeGrid input,
+.jp-NitroJudgeGrid select,
+.jp-NitroJudgeGrid textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 6px;
+  background: var(--jp-input-background);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-NitroJudgeRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.jp-NitroJudgeRow input {
+  flex: 1 1 auto;
+}
+
+.jp-NitroJudgeActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.jp-NitroJudgeActions button,
+.jp-NitroJudgePickerItem {
+  padding: 8px 12px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 6px;
+  background: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+}
+
+.jp-NitroJudgeActions button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.jp-NitroJudgeMessage {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.jp-NitroJudgeMessage[data-kind='error'] {
+  background: color-mix(in srgb, var(--jp-error-color1) 12%, transparent);
+  color: var(--jp-error-color1);
+}
+
+.jp-NitroJudgeMessage[data-kind='info'] {
+  background: color-mix(in srgb, var(--jp-brand-color1) 10%, transparent);
+}
+
+.jp-NitroJudgeSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.jp-NitroJudgeStat {
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--jp-layout-color2);
+  border: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeStat strong {
+  display: block;
+  font-size: 1.2em;
+  margin-top: 4px;
+}
+
+.jp-NitroJudgeTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.jp-NitroJudgeTable th,
+.jp-NitroJudgeTable td {
+  border-bottom: 1px solid var(--jp-border-color3);
+  text-align: left;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.jp-NitroJudgeRadioGroup {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.jp-NitroJudgeRadioGroup label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+}
+
+.jp-NitroJudgePickerList {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.jp-NitroJudgePickerItem[data-selected='true'] {
+  border-color: var(--jp-brand-color1);
+  background: color-mix(in srgb, var(--jp-brand-color1) 15%, var(--jp-layout-color2));
+}
+
+.jp-NitroJudgeMuted {
+  color: var(--jp-ui-font-color2);
+  font-size: 0.95em;
+}
+
+@media (max-width: 768px) {
+  .jp-NitroJudgePanel {
+    padding: 12px;
+  }
+
+  .jp-NitroJudgeRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
