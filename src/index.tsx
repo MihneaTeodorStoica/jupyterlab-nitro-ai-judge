@@ -6,7 +6,6 @@ import {
 } from '@jupyterlab/application';
 import {
   Dialog,
-  MainAreaWidget,
   ReactWidget,
   showDialog
 } from '@jupyterlab/apputils';
@@ -95,10 +94,23 @@ function notebookToPython(panel: NotebookPanel): string {
 }
 
 class FilePickerBody extends ReactWidget {
-  constructor(model: Contents.IModel, currentPath: string) {
+  constructor(
+    model: Contents.IModel,
+    currentPath: string,
+    options: {
+      acceptFile?: (item: Contents.IModel) => boolean;
+      emptyMessage?: string;
+    } = {}
+  ) {
     super();
-    this._items = ((model.content as Contents.IModel[]) ?? []).slice();
+    this._items = ((model.content as Contents.IModel[]) ?? []).filter(item => {
+      if (item.type === 'directory') {
+        return true;
+      }
+      return options.acceptFile ? options.acceptFile(item) : true;
+    });
     this._currentPath = currentPath;
+    this._emptyMessage = options.emptyMessage ?? 'No matching files in this folder.';
   }
 
   getValue(): FilePickerValue {
@@ -121,6 +133,7 @@ class FilePickerBody extends ReactWidget {
       <div>
         <p className="jp-NitroJudgeMuted">Current path: {this._currentPath || '/'}</p>
         <div className="jp-NitroJudgePickerList">
+          {entries.length === 0 ? <p className="jp-NitroJudgeMuted">{this._emptyMessage}</p> : null}
           {entries.map(item => {
             const isSelected = item.path === this._selectedPath;
             const prefix = item.type === 'directory' ? 'Open folder' : 'Select file';
@@ -147,6 +160,7 @@ class FilePickerBody extends ReactWidget {
 
   private _items: Contents.IModel[];
   private _currentPath: string;
+  private _emptyMessage: string;
   private _selectedPath: string | null = null;
   private _selectedType: Contents.ContentType | null = null;
 }
@@ -154,7 +168,11 @@ class FilePickerBody extends ReactWidget {
 async function pickFile(
   app: JupyterFrontEnd,
   startPath: string,
-  title: string
+  title: string,
+  options: {
+    acceptFile?: (item: Contents.IModel) => boolean;
+    emptyMessage?: string;
+  } = {}
 ): Promise<string | null> {
   let currentPath = startPath;
 
@@ -164,7 +182,7 @@ async function pickFile(
       throw new Error(`Path is not a directory: ${currentPath}`);
     }
 
-    const body = new FilePickerBody(model, currentPath);
+    const body = new FilePickerBody(model, currentPath, options);
     const buttons = [
       Dialog.cancelButton(),
       Dialog.okButton({ label: 'Up' }),
@@ -221,10 +239,9 @@ class NitroJudgeBody extends ReactWidget {
 
     return (
       <div>
-        <h2>Submit to Nitro AI Judge</h2>
-        <p>
-          Notebook: <code>{this._panel.context.path}</code>
-        </p>
+          <p>
+            Notebook: <code>{this._panel.context.path}</code>
+          </p>
 
         {this._error ? (
           <div className="jp-NitroJudgeMessage" data-kind="error">
@@ -331,12 +348,13 @@ class NitroJudgeBody extends ReactWidget {
                   }}
                   placeholder="path/to/output.csv"
                   type="text"
-                  value={this._outputPath}
+                    value={this._outputPath}
                 />
                 <button disabled={this._busy} onClick={() => void this._pickOutput()} type="button">
                   Browse
                 </button>
               </div>
+              <p className="jp-NitroJudgeMuted">Choose a `.csv` file from the notebook folder tree.</p>
             </label>
 
             <div>
@@ -481,6 +499,9 @@ class NitroJudgeBody extends ReactWidget {
     if (!this._status.loggedIn || !this._selectedContest || !this._selectedTask || !this._outputPath) {
       return false;
     }
+    if (!this._outputPath.toLowerCase().endsWith('.csv')) {
+      return false;
+    }
     if (this._sourceMode === 'file' && !this._sourcePath) {
       return false;
     }
@@ -583,7 +604,10 @@ class NitroJudgeBody extends ReactWidget {
 
   private async _pickOutput(): Promise<void> {
     try {
-      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick output CSV');
+      const selected = await pickFile(this._app, notebookDirectory(this._panel), 'Pick output CSV', {
+        acceptFile: item => item.name.toLowerCase().endsWith('.csv'),
+        emptyMessage: 'No CSV files in this folder. You can still open another folder or go up.'
+      });
       if (selected) {
         this._outputPath = selected;
         this.update();
@@ -685,15 +709,6 @@ class NitroJudgeBody extends ReactWidget {
   private _result: SubmissionResult | null = null;
 }
 
-function createJudgePanel(app: JupyterFrontEnd, notebook: NotebookPanel): MainAreaWidget<NitroJudgeBody> {
-  const content = new NitroJudgeBody(app, notebook);
-  const widget = new MainAreaWidget({ content });
-  widget.id = `nitro-ai-judge:${notebook.id}:${Date.now()}`;
-  widget.title.label = `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`;
-  widget.title.closable = true;
-  return widget;
-}
-
 const plugin: JupyterFrontEndPlugin<void> = {
   id: 'jupyterlab-nitro-ai-judge:plugin',
   autoStart: true,
@@ -706,11 +721,13 @@ const plugin: JupyterFrontEndPlugin<void> = {
         new ToolbarButton({
           label: 'Submit to Nitro AI Judge',
           onClick: () => {
-            const widget = createJudgePanel(app, notebook);
-            app.shell.add(widget, 'main');
-            app.shell.activateById(widget.id);
+            void showDialog({
+              title: `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`,
+              body: new NitroJudgeBody(app, notebook),
+              buttons: [Dialog.cancelButton({ label: 'Close' })]
+            });
           },
-          tooltip: 'Open Nitro AI Judge submission panel'
+          tooltip: 'Open Nitro AI Judge submission popup'
         })
       );
     });

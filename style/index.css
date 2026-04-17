@@ -3,6 +3,11 @@
   overflow: auto;
 }
 
+.jp-Dialog .jp-NitroJudgePanel {
+  width: min(860px, 80vw);
+  max-height: 75vh;
+}
+
 .jp-NitroJudgePanel h2,
 .jp-NitroJudgePanel h3 {
   margin: 0 0 12px;
