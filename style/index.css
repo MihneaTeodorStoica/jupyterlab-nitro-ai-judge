@@ -299,6 +299,14 @@
   margin: 0;
 }
 
+.jp-NitroJudgeOverlayCard > .jp-NitroJudgeMuted {
+  margin: 12px 0 8px;
+}
+
+.jp-NitroJudgeOverlay .jp-NitroJudgeActions {
+  margin: 12px 0 0;
+}
+
 .jp-NitroJudgeMuted {
   color: var(--jp-ui-font-color2);
   font-size: 0.95em;
