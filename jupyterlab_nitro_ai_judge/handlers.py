@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 from functools import partial
 import os
+import platform
+import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -12,6 +15,22 @@ from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
 import nitro_cli
+
+
+_PLAYWRIGHT_READY = False
+
+
+def _ensure_playwright_browser() -> None:
+    global _PLAYWRIGHT_READY
+    if _PLAYWRIGHT_READY:
+        return
+
+    command = [sys.executable, "-m", "playwright", "install"]
+    if platform.system() == "Linux":
+        command.append("--with-deps")
+    command.append("chromium")
+    subprocess.run(command, check=True)
+    _PLAYWRIGHT_READY = True
 
 
 def _serialize_competition(item: dict[str, Any]) -> dict[str, Any]:
@@ -103,6 +122,7 @@ def _login(username: str, password: str) -> dict[str, Any]:
 
     if not cf:
         try:
+            _ensure_playwright_browser()
             cf = nitro_cli.fetch_cf_clearance()
         except Exception as exc:  # pragma: no cover - external runtime behavior
             raise tornado.web.HTTPError(
@@ -112,6 +132,7 @@ def _login(username: str, password: str) -> dict[str, Any]:
     result = nitro_cli.do_login(username, password, cf)
     if result.get("http_code") == 403:
         try:
+            _ensure_playwright_browser()
             cf = nitro_cli.fetch_cf_clearance()
         except Exception as exc:  # pragma: no cover - external runtime behavior
             raise tornado.web.HTTPError(
