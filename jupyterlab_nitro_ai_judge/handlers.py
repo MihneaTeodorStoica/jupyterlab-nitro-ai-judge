@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from functools import partial
 import os
-import platform
 import subprocess
 import sys
 import tempfile
@@ -25,10 +24,7 @@ def _ensure_playwright_browser() -> None:
     if _PLAYWRIGHT_READY:
         return
 
-    command = [sys.executable, "-m", "playwright", "install"]
-    if platform.system() == "Linux":
-        command.append("--with-deps")
-    command.append("chromium")
+    command = [sys.executable, "-m", "playwright", "install", "chromium"]
     subprocess.run(command, check=True)
     _PLAYWRIGHT_READY = True
 
