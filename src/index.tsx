@@ -420,9 +420,6 @@ class NitroJudgeBody extends ReactWidget {
             <div className="jp-NitroJudgeOverlayCard">
               <div className="jp-NitroJudgeOverlayHeader">
                 <h3>{pickerState.title}</h3>
-                <button onClick={() => this._closePicker()} type="button">
-                  Close
-                </button>
               </div>
               <p className="jp-NitroJudgeMuted">Current path: {pickerState.currentPath || '/'}</p>
               {pickerState.error ? (
