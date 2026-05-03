@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import partial
+import inspect
 import os
 import subprocess
 import sys
@@ -17,6 +18,13 @@ import nitro_cli
 
 
 _PLAYWRIGHT_READY = False
+
+
+def _nitro_cli_uses_token_login() -> bool:
+    try:
+        return len(inspect.signature(nitro_cli.do_login).parameters) == 2
+    except (TypeError, ValueError):
+        return hasattr(nitro_cli, "save_token_state")
 
 
 def _ensure_playwright_browser() -> None:
@@ -93,12 +101,21 @@ def _load_auth(validate: bool = True) -> dict[str, Any]:
     if not state:
         raise tornado.web.HTTPError(401, "Nitro AI Judge login required")
 
+    if validate and hasattr(nitro_cli, "ensure_fresh_state"):
+        state = nitro_cli.ensure_fresh_state(state)
+        if not state:
+            raise tornado.web.HTTPError(401, "Nitro AI Judge session expired")
+
     auth = nitro_cli.get_auth(state)
     if not auth:
-        raise tornado.web.HTTPError(401, "Nitro AI Judge session cookies are missing")
+        raise tornado.web.HTTPError(401, "Nitro AI Judge credentials are missing")
 
-    cookies = (auth[0], auth[1])
-    if validate and not nitro_cli.test_session(cookies[0], cookies[1]):
+    cookies = (auth[0] or "", auth[1] or "")
+    if (
+        validate
+        and hasattr(nitro_cli, "test_session")
+        and not nitro_cli.test_session(cookies[0], cookies[1])
+    ):
         raise tornado.web.HTTPError(401, "Nitro AI Judge session expired")
 
     return {"state": state, "cookies": cookies, "bearer": auth[2]}
@@ -108,6 +125,15 @@ def _login(username: str, password: str) -> dict[str, Any]:
     username = username.strip()
     if not username or not password:
         raise tornado.web.HTTPError(400, "Username and password are required")
+
+    if _nitro_cli_uses_token_login():
+        result = nitro_cli.do_login(username, password)
+        if not result.get("success") or not result.get("tokens"):
+            raise tornado.web.HTTPError(
+                401, result.get("error") or "Nitro AI Judge login failed"
+            )
+        nitro_cli.save_token_state(result["tokens"], result.get("username") or username)
+        return _load_auth(validate=False)
 
     saved_cf, existing_session = nitro_cli.get_saved_login_cookies()
     cf = saved_cf
