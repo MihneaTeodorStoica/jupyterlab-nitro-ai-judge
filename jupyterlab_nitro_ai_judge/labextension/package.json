@@ -1,6 +1,6 @@
 {
   "name": "jupyterlab-nitro-ai-judge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "JupyterLab extension for Nitro AI Judge submissions from notebooks",
   "keywords": [
     "jupyter",
@@ -50,7 +50,7 @@
     "extension": true,
     "outputDir": "jupyterlab_nitro_ai_judge/labextension",
     "_build": {
-      "load": "static/remoteEntry.a42cfd14ce7bc44c7e2e.js",
+      "load": "static/remoteEntry.bc9ee57f9cdd269bf7da.js",
       "extension": "./extension",
       "style": "./style"
     }

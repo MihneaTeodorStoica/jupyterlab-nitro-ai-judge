@@ -53,7 +53,7 @@ type SubmissionResult = {
   subtasks: SubmissionSubtask[];
 };
 
-type TaskDataCategory = 'train_data' | 'test_data' | 'sample_output' | 'custom_archive';
+type TaskDataCategory = 'statement' | 'train_data' | 'test_data' | 'sample_output' | 'custom_archive';
 
 type TaskDataDownload = {
   category: TaskDataCategory;
@@ -62,10 +62,11 @@ type TaskDataDownload = {
 };
 
 const TASK_DATA_CATEGORIES: Array<{ value: TaskDataCategory; label: string }> = [
+  { value: 'statement', label: 'Statement' },
   { value: 'train_data', label: 'Train data' },
   { value: 'test_data', label: 'Test data' },
   { value: 'sample_output', label: 'Sample output' },
-  { value: 'custom_archive', label: 'Custom archive' }
+  { value: 'custom_archive', label: 'Starter kit' }
 ];
 
 type FilePickerOptions = {
@@ -277,7 +278,8 @@ class NitroJudgeBody extends ReactWidget {
                       onChange={event => this._toggleDataCategory(category.value, event.currentTarget.checked)}
                       type="checkbox"
                     />
-                    <span>{category.label}</span>
+                    <span className="jp-NitroJudgeCheckboxBox" aria-hidden="true" />
+                    <span className="jp-NitroJudgeCheckboxLabel">{category.label}</span>
                   </label>
                 ))}
               </div>
@@ -299,7 +301,7 @@ class NitroJudgeBody extends ReactWidget {
                 <ul className="jp-NitroJudgeDownloadList">
                   {this._downloadedData.map(item => (
                     <li key={`${item.category}:${item.path}`}>
-                      <strong>{item.category}</strong>: {item.path}
+                      <strong>{this._dataCategoryLabel(item.category)}</strong>: {item.path}
                     </li>
                   ))}
                 </ul>
@@ -570,6 +572,10 @@ class NitroJudgeBody extends ReactWidget {
       this._dataCategories = this._dataCategories.filter(item => item !== category);
     }
     this.update();
+  }
+
+  private _dataCategoryLabel(category: TaskDataCategory): string {
+    return TASK_DATA_CATEGORIES.find(item => item.value === category)?.label ?? category;
   }
 
   private _displayValue(value: string | number | null): string {
@@ -951,7 +957,7 @@ class NitroJudgeBody extends ReactWidget {
   private _selectedTask: Task | null = null;
   private _outputPath = '';
   private _dataOutputDir = '';
-  private _dataCategories: TaskDataCategory[] = ['train_data', 'test_data', 'sample_output'];
+  private _dataCategories: TaskDataCategory[] = TASK_DATA_CATEGORIES.map(item => item.value);
   private _downloadedData: TaskDataDownload[] = [];
   private _sourceMode: 'notebook' | 'file' = 'notebook';
   private _sourcePath = '';
