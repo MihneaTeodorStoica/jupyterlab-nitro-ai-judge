@@ -61,6 +61,12 @@ type TaskDataDownload = {
   bytes: number;
 };
 
+type TaskDataOption = {
+  value: TaskDataCategory;
+  label: string;
+  available: boolean;
+};
+
 const TASK_DATA_CATEGORIES: Array<{ value: TaskDataCategory; label: string }> = [
   { value: 'statement', label: 'Statement' },
   { value: 'train_data', label: 'Train data' },
@@ -253,8 +259,12 @@ class NitroJudgeBody extends ReactWidget {
                 onChange={event => {
                   const task = this._tasks.find(item => item.id === event.currentTarget.value) ?? null;
                   this._selectedTask = task;
+                  this._dataOptions = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
                   this._downloadedData = [];
                   this.update();
+                  if (task) {
+                    void this._loadTaskDataOptions(task.id);
+                  }
                 }}
                 value={this._selectedTask?.id ?? ''}
               >
@@ -270,11 +280,11 @@ class NitroJudgeBody extends ReactWidget {
             <fieldset className="jp-NitroJudgeSourceGroup">
               <legend className="jp-NitroJudgeFieldTitle">Task data</legend>
               <div className="jp-NitroJudgeDataGrid">
-                {TASK_DATA_CATEGORIES.map(category => (
-                  <label className="jp-NitroJudgeCheckbox" key={category.value}>
+                {this._dataOptions.map(category => (
+                  <label className="jp-NitroJudgeCheckbox" data-available={category.available} key={category.value}>
                     <input
                       checked={this._dataCategories.includes(category.value)}
-                      disabled={this._busy}
+                      disabled={this._busy || !category.available}
                       onChange={event => this._toggleDataCategory(category.value, event.currentTarget.checked)}
                       type="checkbox"
                     />
@@ -561,11 +571,14 @@ class NitroJudgeBody extends ReactWidget {
       this._status.loggedIn &&
       Boolean(this._selectedContest?.hasStarted) &&
       Boolean(this._selectedTask) &&
-      this._dataCategories.length > 0
+      this._dataCategories.some(category => this._isDataCategoryAvailable(category))
     );
   }
 
   private _toggleDataCategory(category: TaskDataCategory, enabled: boolean): void {
+    if (!this._isDataCategoryAvailable(category)) {
+      return;
+    }
     if (enabled) {
       this._dataCategories = Array.from(new Set([...this._dataCategories, category]));
     } else {
@@ -576,6 +589,10 @@ class NitroJudgeBody extends ReactWidget {
 
   private _dataCategoryLabel(category: TaskDataCategory): string {
     return TASK_DATA_CATEGORIES.find(item => item.value === category)?.label ?? category;
+  }
+
+  private _isDataCategoryAvailable(category: TaskDataCategory): boolean {
+    return this._dataOptions.some(item => item.value === category && item.available);
   }
 
   private _displayValue(value: string | number | null): string {
@@ -658,6 +675,9 @@ class NitroJudgeBody extends ReactWidget {
   private async _selectContest(value: string): Promise<void> {
     this._selectedTask = null;
     this._tasks = [];
+    this._dataOptions = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
+    this._dataCategories = [];
+    this._downloadedData = [];
 
     if (!value) {
       this._selectedContest = null;
@@ -691,6 +711,33 @@ class NitroJudgeBody extends ReactWidget {
       this._error = this._asMessage(error);
     } finally {
       this._clearBusy();
+    }
+  }
+
+  private async _loadTaskDataOptions(taskId: string): Promise<void> {
+    if (!this._selectedContest) {
+      return;
+    }
+
+    try {
+      const response = await requestAPI<{ items: Array<{ category: TaskDataCategory; label: string; available: boolean }> }>(
+        `task-data-options?org=${encodeURIComponent(this._selectedContest.org)}&comp=${encodeURIComponent(this._selectedContest.slug)}&taskId=${encodeURIComponent(taskId)}`
+      );
+      this._dataOptions = TASK_DATA_CATEGORIES.map(category => {
+        const option = response.items.find(item => item.category === category.value);
+        return {
+          ...category,
+          label: option?.label ?? category.label,
+          available: Boolean(option?.available)
+        };
+      });
+      this._dataCategories = this._dataOptions.filter(item => item.available).map(item => item.value);
+    } catch (error) {
+      this._error = this._asMessage(error);
+      this._dataOptions = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
+      this._dataCategories = [];
+    } finally {
+      this.update();
     }
   }
 
@@ -779,7 +826,7 @@ class NitroJudgeBody extends ReactWidget {
           org: this._selectedContest.org,
           comp: this._selectedContest.slug,
           taskId: this._selectedTask.id,
-          categories: this._dataCategories,
+          categories: this._dataCategories.filter(category => this._isDataCategoryAvailable(category)),
           outputDir: this._dataOutputDir,
           force: true
         }),
@@ -957,7 +1004,8 @@ class NitroJudgeBody extends ReactWidget {
   private _selectedTask: Task | null = null;
   private _outputPath = '';
   private _dataOutputDir = '';
-  private _dataCategories: TaskDataCategory[] = TASK_DATA_CATEGORIES.map(item => item.value);
+  private _dataOptions: TaskDataOption[] = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
+  private _dataCategories: TaskDataCategory[] = [];
   private _downloadedData: TaskDataDownload[] = [];
   private _sourceMode: 'notebook' | 'file' = 'notebook';
   private _sourcePath = '';

@@ -245,6 +245,27 @@ class TasksHandler(NitroBaseHandler):
         self.write_json({"items": [_serialize_task(item) for item in items]})
 
 
+class TaskDataOptionsHandler(NitroBaseHandler):
+    @tornado.web.authenticated
+    async def get(self) -> None:
+        org = self.get_argument("org", "").strip()
+        comp = self.get_argument("comp", "").strip()
+        task_id = str(self.get_argument("taskId", "")).strip()
+        if not org or not comp or not task_id:
+            raise tornado.web.HTTPError(400, "Missing org, comp, or task")
+
+        auth = await asyncio.to_thread(_load_auth)
+        items = await asyncio.to_thread(
+            nitro_cli.get_task_data_options,
+            auth["cookies"],
+            auth["bearer"],
+            org,
+            comp,
+            task_id,
+        )
+        self.write_json({"items": items})
+
+
 class SubmitHandler(NitroBaseHandler):
     @tornado.web.authenticated
     async def post(self) -> None:
@@ -381,6 +402,7 @@ def setup_handlers(web_app: Any) -> None:
         (url_path_join(base_url, "nitro-ai-judge", "login"), LoginHandler),
         (url_path_join(base_url, "nitro-ai-judge", "contests"), ContestsHandler),
         (url_path_join(base_url, "nitro-ai-judge", "tasks"), TasksHandler),
+        (url_path_join(base_url, "nitro-ai-judge", "task-data-options"), TaskDataOptionsHandler),
         (url_path_join(base_url, "nitro-ai-judge", "download-data"), DownloadDataHandler),
         (url_path_join(base_url, "nitro-ai-judge", "submit"), SubmitHandler),
     ]
