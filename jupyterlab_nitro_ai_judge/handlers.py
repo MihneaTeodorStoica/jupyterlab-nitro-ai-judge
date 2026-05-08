@@ -324,6 +324,56 @@ class SubmitHandler(NitroBaseHandler):
         )
 
 
+class DownloadDataHandler(NitroBaseHandler):
+    @tornado.web.authenticated
+    async def post(self) -> None:
+        data = self.get_json_body() or {}
+        org = data.get("org", "").strip()
+        comp = data.get("comp", "").strip()
+        task_id = str(data.get("taskId", "")).strip()
+        categories = data.get("categories")
+        output_dir = data.get("outputDir", "").strip()
+        force = bool(data.get("force", False))
+
+        if not org or not comp or not task_id:
+            raise tornado.web.HTTPError(400, "Contest and task are required")
+        if categories is not None and not isinstance(categories, list):
+            raise tornado.web.HTTPError(400, "Categories must be a list")
+
+        auth = await asyncio.to_thread(_load_auth)
+        output_fs_dir = self.contents_manager._get_os_path(output_dir)
+
+        try:
+            downloads = await asyncio.to_thread(
+                nitro_cli.download_task_data,
+                auth["cookies"],
+                auth["bearer"],
+                org,
+                comp,
+                task_id,
+                categories=categories,
+                output_dir=output_fs_dir,
+                force=force,
+            )
+        except ValueError as exc:
+            raise tornado.web.HTTPError(400, str(exc)) from exc
+        except RuntimeError as exc:
+            raise tornado.web.HTTPError(502, str(exc)) from exc
+
+        api_paths = []
+        for item in downloads:
+            filename = os.path.basename(item["path"])
+            api_paths.append(
+                {
+                    "category": item["category"],
+                    "path": os.path.join(output_dir, filename) if output_dir else filename,
+                    "bytes": item["bytes"],
+                }
+            )
+
+        self.write_json({"items": api_paths})
+
+
 def setup_handlers(web_app: Any) -> None:
     base_url = web_app.settings["base_url"]
     handlers = [
@@ -331,6 +381,7 @@ def setup_handlers(web_app: Any) -> None:
         (url_path_join(base_url, "nitro-ai-judge", "login"), LoginHandler),
         (url_path_join(base_url, "nitro-ai-judge", "contests"), ContestsHandler),
         (url_path_join(base_url, "nitro-ai-judge", "tasks"), TasksHandler),
+        (url_path_join(base_url, "nitro-ai-judge", "download-data"), DownloadDataHandler),
         (url_path_join(base_url, "nitro-ai-judge", "submit"), SubmitHandler),
     ]
     web_app.add_handlers(".*$", handlers)

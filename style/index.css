@@ -249,6 +249,42 @@
   background: var(--jp-layout-color2);
 }
 
+.jp-NitroJudgeDataGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.jp-NitroJudgeCheckbox:nth-child(2n) {
+  border-left: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeCheckbox:nth-child(n + 3) {
+  border-top: 1px solid var(--jp-border-color2);
+}
+
+.jp-NitroJudgeCheckbox input {
+  margin: 0;
+}
+
+.jp-NitroJudgeDataTarget {
+  margin-top: 6px;
+}
+
+.jp-NitroJudgeDownloadList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--jp-ui-font-color1);
+}
+
 .jp-NitroJudgePickerList {
   display: grid;
   gap: 4px;
@@ -321,8 +357,20 @@
     grid-template-columns: 1fr;
   }
 
+  .jp-NitroJudgeDataGrid {
+    grid-template-columns: 1fr;
+  }
+
   .jp-NitroJudgeSourceOption + .jp-NitroJudgeSourceOption {
     border-left: 0;
+    border-top: 1px solid var(--jp-border-color2);
+  }
+
+  .jp-NitroJudgeCheckbox:nth-child(2n) {
+    border-left: 0;
+  }
+
+  .jp-NitroJudgeCheckbox:nth-child(n + 2) {
     border-top: 1px solid var(--jp-border-color2);
   }
 
