@@ -221,6 +221,7 @@ class ContestsHandler(NitroBaseHandler):
             partial(
                 nitro_cli.load_competitions,
                 auth["cookies"],
+                auth["bearer"],
                 page=None,
                 page_size=100,
                 featured=None,
