@@ -1018,13 +1018,32 @@ class NitroJudgeBody extends ReactWidget {
   private _result: SubmissionResult | null = null;
 }
 
+function judgePanelId(notebook: NotebookPanel): string {
+  return `nitro-ai-judge:${notebook.context.path}`;
+}
+
 function createJudgePanel(app: JupyterFrontEnd, notebook: NotebookPanel): MainAreaWidget<NitroJudgeBody> {
   const content = new NitroJudgeBody(app, notebook);
   const widget = new MainAreaWidget({ content });
-  widget.id = `nitro-ai-judge:${notebook.id}:${Date.now()}`;
+  widget.id = judgePanelId(notebook);
   widget.title.label = `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`;
   widget.title.closable = true;
   return widget;
+}
+
+function openJudgePanel(app: JupyterFrontEnd, notebook: NotebookPanel): void {
+  const id = judgePanelId(notebook);
+
+  for (const widget of app.shell.widgets('main')) {
+    if (widget.id === id) {
+      app.shell.activateById(id);
+      return;
+    }
+  }
+
+  const widget = createJudgePanel(app, notebook);
+  app.shell.add(widget, 'main');
+  app.shell.activateById(widget.id);
 }
 
 const plugin: JupyterFrontEndPlugin<void> = {
@@ -1039,9 +1058,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
         new ToolbarButton({
           label: 'Submit to Nitro AI Judge',
           onClick: () => {
-            const widget = createJudgePanel(app, notebook);
-            app.shell.add(widget, 'main');
-            app.shell.activateById(widget.id);
+            openJudgePanel(app, notebook);
           },
           tooltip: 'Open Nitro AI Judge submission tab'
         })

@@ -70,7 +70,7 @@ PyPI release flow:
 python -m pip install -U build twine
 python -m build
 python -m twine check dist/*
-git tag v1.3.2
+git tag v1.3.3
 git push origin main --tags
 ```
 
