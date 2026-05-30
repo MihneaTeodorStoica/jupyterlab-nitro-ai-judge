@@ -263,6 +263,32 @@ def _poll_submission_feedback(
     )
 
 
+class NitroBaseHandler(APIHandler):
+    @property
+    def contents_manager(self) -> Any:
+        return self.settings["contents_manager"]
+
+    def write_json(self, payload: dict[str, Any]) -> None:
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps(payload))
+
+
+class StatusHandler(NitroBaseHandler):
+    @tornado.web.authenticated
+    async def get(self) -> None:
+        try:
+            auth = await asyncio.to_thread(_load_auth)
+        except Exception:
+            auth = {}
+
+        self.write_json(
+            {
+                "authenticated": bool(auth.get("cookies") or auth.get("bearer")),
+                "tokenLogin": _nitro_cli_uses_token_login(),
+            }
+        )
+
+
 class LoginHandler(NitroBaseHandler):
     @tornado.web.authenticated
     async def post(self) -> None:
