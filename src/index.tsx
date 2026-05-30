@@ -11,9 +11,15 @@ import {
 import { PathExt, URLExt } from '@jupyterlab/coreutils';
 import { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
 import { Contents, ServerConnection } from '@jupyterlab/services';
-import { ToolbarButton } from '@jupyterlab/ui-components';
+import { LabIcon, ToolbarButton } from '@jupyterlab/ui-components';
 import { Message } from '@lumino/messaging';
 import React from 'react';
+
+const nitroJudgeIcon = new LabIcon({
+  name: 'jupyterlab-nitro-ai-judge:nitro-logo',
+  svgstr:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="none" stroke="#e67251" stroke-linecap="round" stroke-linejoin="round" stroke-width="14" d="M38 74c24 8 24 36 14 67-10 33 5 72 53 82 56 12 115-18 134-70 9-24 9-45 5-63-1 44-32 71-73 73-30 1-63-12-80-22"/><path fill="none" stroke="#e67251" stroke-linecap="round" stroke-linejoin="round" stroke-width="10" d="M34 72c12-4 10-17 18-27 13-16 37-15 51 1 17 19 3 54 8 83 2 13 9 27 23 34 20 10 44 13 67-5 15-12 14-27 7-36"/><circle cx="89" cy="128" r="9" fill="none" stroke="#e67251" stroke-width="8"/></svg>'
+});
 
 type LoginStatus = {
   loggedIn: boolean;
@@ -50,10 +56,12 @@ type SubmissionResult = {
   state: string;
   partialScore: number | string | null;
   completeScore: number | string | null;
+  createdAt?: string | null;
+  prejudgingScriptOutput?: string | null;
   subtasks: SubmissionSubtask[];
 };
 
-type TaskDataCategory = 'statement' | 'train_data' | 'test_data' | 'sample_output' | 'custom_archive';
+type TaskDataCategory = 'statement' | 'train_data' | 'test_data' | 'sample_output' | 'custom_archive' | 'pre_judging_script';
 
 type TaskDataDownload = {
   category: TaskDataCategory;
@@ -72,7 +80,8 @@ const TASK_DATA_CATEGORIES: Array<{ value: TaskDataCategory; label: string }> = 
   { value: 'train_data', label: 'Train data' },
   { value: 'test_data', label: 'Test data' },
   { value: 'sample_output', label: 'Sample output' },
-  { value: 'custom_archive', label: 'Starter kit' }
+  { value: 'custom_archive', label: 'Starter kit' },
+  { value: 'pre_judging_script', label: 'Pre-judging script' }
 ];
 
 type FilePickerOptions = {
@@ -99,6 +108,7 @@ type PickerState = {
 };
 
 let contestCache: Contest[] | null = null;
+const taskCache = new Map<string, Task[]>();
 
 async function requestAPI<T>(
   endPoint: string,
@@ -121,18 +131,6 @@ async function requestAPI<T>(
 function notebookDirectory(panel: NotebookPanel): string {
   const dir = PathExt.dirname(panel.context.path);
   return dir === '.' ? '' : dir;
-}
-
-function notebookToPython(panel: NotebookPanel): string {
-  const cells = panel.content.widgets.filter(cell => cell.model.type === 'code');
-
-  return cells
-    .map((cell, index) => {
-      const source = cell.model.sharedModel.getSource().trimEnd();
-      return `# %% [code cell ${index + 1}]\n${source}`;
-    })
-    .join('\n\n')
-    .trim() + '\n';
 }
 
 function formatContestLabel(contest: Contest): string {
@@ -162,12 +160,13 @@ class NitroJudgeBody extends ReactWidget {
     const selectedContestValue = this._selectedContest
       ? `${this._selectedContest.org}/${this._selectedContest.slug}`
       : '';
+    const currentNotebook = this._currentNotebookPanel();
     const pickerState = this._pickerState;
 
     return (
       <div className="jp-NitroJudgeRoot">
         <p className="jp-NitroJudgeNotebookPath">
-          Notebook: <code>{this._panel.context.path}</code>
+          Notebook: <code>{currentNotebook.context.path || this._panel.context.path}</code>
         </p>
 
         {this._error ? (
@@ -261,9 +260,13 @@ class NitroJudgeBody extends ReactWidget {
                   this._selectedTask = task;
                   this._dataOptions = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
                   this._downloadedData = [];
+                  this._result = null;
+                  this._submissionHistory = [];
+                  this._submissionCount = null;
                   this.update();
                   if (task) {
                     void this._loadTaskDataOptions(task.id);
+                    void this._loadSubmissionHistory(task.id);
                   }
                 }}
                 value={this._selectedTask?.id ?? ''}
@@ -303,7 +306,12 @@ class NitroJudgeBody extends ReactWidget {
                   type="text"
                   value={this._dataOutputDir}
                 />
-                <button disabled={this._busy || !this._canDownloadData()} onClick={() => void this._downloadData()} type="button">
+                <button
+              className="jp-NitroJudgeActionButton jp-NitroJudgeActionButtonPrimary"
+              disabled={this._busy || !this._canDownloadData()}
+              onClick={() => void this._downloadData()}
+              type="button"
+            >
                   Download
                 </button>
               </div>
@@ -319,23 +327,47 @@ class NitroJudgeBody extends ReactWidget {
             </fieldset>
 
             <label className="jp-NitroJudgeFieldLabel">
-              <span className="jp-NitroJudgeFieldTitle">Output CSV</span>
+              <span className="jp-NitroJudgeFieldTitle">Output file</span>
               <div className="jp-NitroJudgeRow">
                 <input
                   onChange={event => {
                     this._outputPath = event.currentTarget.value;
                     this.update();
                   }}
-                  placeholder="path/to/output.csv"
+                  placeholder="path/to/output.csv or path/to/output.pkl"
                   type="text"
                     value={this._outputPath}
                 />
-                <button disabled={this._busy} onClick={() => void this._pickOutput()} type="button">
+                <button
+                  className="jp-NitroJudgeBrowseButton"
+                  disabled={this._busy}
+                  onClick={() => void this._pickOutput()}
+                  type="button"
+                >
                   Browse
                 </button>
               </div>
-              <p className="jp-NitroJudgeMuted">Choose a `.csv` file from the notebook folder tree.</p>
+              <p className="jp-NitroJudgeMuted">Choose any output file from the notebook folder tree.</p>
             </label>
+
+            <label className="jp-NitroJudgeCheckbox jp-NitroJudgeProxyToggle">
+              <input
+                checked={this._useSubmissionProxy}
+                onChange={event => {
+                  this._useSubmissionProxy = event.currentTarget.checked;
+                  if (this._useSubmissionProxy) {
+                    this._sourceMode = 'file';
+                  }
+                  this.update();
+                }}
+                type="checkbox"
+              />
+              <span className="jp-NitroJudgeCheckboxText">Use submission proxy for interactive/pre-judging tasks</span>
+            </label>
+            <p className="jp-NitroJudgeMuted">
+              Sends Jupyter file paths to the contest submission proxy so pre-judging scripts can run before upload.
+              Requires a saved Python source file.
+            </p>
 
             <fieldset className="jp-NitroJudgeSourceGroup">
               <legend className="jp-NitroJudgeFieldTitle">Source code</legend>
@@ -346,6 +378,7 @@ class NitroJudgeBody extends ReactWidget {
                     name="nitro-source-mode"
                     onChange={() => {
                       this._sourceMode = 'notebook';
+                      this._useSubmissionProxy = false;
                       this.update();
                     }}
                     type="radio"
@@ -386,7 +419,12 @@ class NitroJudgeBody extends ReactWidget {
                     type="text"
                     value={this._sourcePath}
                   />
-                  <button disabled={this._busy} onClick={() => void this._pickSource()} type="button">
+                  <button
+              className="jp-NitroJudgeBrowseButton"
+              disabled={this._busy}
+              onClick={() => void this._pickSource()}
+              type="button"
+            >
                     Browse
                   </button>
                 </div>
@@ -449,6 +487,13 @@ class NitroJudgeBody extends ReactWidget {
               </div>
             </div>
 
+            {this._result.prejudgingScriptOutput ? (
+              <>
+                <h3 className="jp-NitroJudgeSubheading">Pre-judging script output</h3>
+                <pre className="jp-NitroJudgePrejudgeOutput">{this._result.prejudgingScriptOutput}</pre>
+              </>
+            ) : null}
+
             <h3 className="jp-NitroJudgeSubheading">Subtasks</h3>
             <table className="jp-NitroJudgeTable">
               <thead>
@@ -481,6 +526,31 @@ class NitroJudgeBody extends ReactWidget {
                 ))}
               </tbody>
             </table>
+          </section>
+        ) : null}
+
+        {this._submissionHistory.length > 0 ? (
+          <section className="jp-NitroJudgeResult jp-NitroJudgeHistory">
+            <div className="jp-NitroJudgeSectionHeader">
+              <h3>Submission history</h3>
+              <p className="jp-NitroJudgeMuted">
+                {this._submissionCount === null ? `${this._submissionHistory.length} recent submissions` : `${this._submissionCount} total submissions`}
+              </p>
+            </div>
+            <div className="jp-NitroJudgeHistoryList">
+              {this._submissionHistory.map((submission, index) => (
+                <div className="jp-NitroJudgeHistoryItem" key={`${submission.id}-${index}`}>
+                  <div>
+                    <strong>{submission.state}</strong>
+                    <p className="jp-NitroJudgeMuted">{this._submissionTime(submission.createdAt)}</p>
+                  </div>
+                  <div className="jp-NitroJudgeHistoryScores">
+                    <span>Partial {this._displayValue(submission.partialScore)}</span>
+                    <span>Complete {this._displayValue(submission.completeScore)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         ) : null}
 
@@ -554,13 +624,13 @@ class NitroJudgeBody extends ReactWidget {
     ) {
       return false;
     }
-    if (!this._outputPath.toLowerCase().endsWith('.csv')) {
-      return false;
-    }
     if (this._sourceMode === 'file' && !this._sourcePath) {
       return false;
     }
     if (this._sourceMode === 'file' && !this._sourcePath.toLowerCase().endsWith('.py')) {
+      return false;
+    }
+    if (this._useSubmissionProxy && this._sourceMode !== 'file') {
       return false;
     }
     return true;
@@ -595,8 +665,30 @@ class NitroJudgeBody extends ReactWidget {
     return this._dataOptions.some(item => item.value === category && item.available);
   }
 
-  private _displayValue(value: string | number | null): string {
+  private _displayValue(value: string | number | null | undefined): string {
     return value === null || value === undefined || value === '' ? '-' : String(value);
+  }
+
+  private _submissionTime(value: string | null | undefined): string {
+    if (!value) {
+      return 'Unknown time';
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    return parsed.toLocaleString();
+  }
+
+  private _currentNotebookPanel(): NotebookPanel {
+    const current = this._app.shell.currentWidget;
+    if (current instanceof NotebookPanel) {
+      return current;
+    }
+
+    return this._panel;
   }
 
   private async _initialize(): Promise<void> {
@@ -656,6 +748,7 @@ class NitroJudgeBody extends ReactWidget {
       const response = await requestAPI<{ items: Contest[] }>('contests');
       this._contests = response.items;
       contestCache = response.items;
+      taskCache.clear();
       if (this._selectedContest) {
         const refreshed = this._contests.find(
           item => item.org === this._selectedContest?.org && item.slug === this._selectedContest?.slug
@@ -678,6 +771,9 @@ class NitroJudgeBody extends ReactWidget {
     this._dataOptions = TASK_DATA_CATEGORIES.map(item => ({ ...item, available: false }));
     this._dataCategories = [];
     this._downloadedData = [];
+    this._result = null;
+    this._submissionHistory = [];
+    this._submissionCount = null;
 
     if (!value) {
       this._selectedContest = null;
@@ -693,20 +789,24 @@ class NitroJudgeBody extends ReactWidget {
       return;
     }
 
-    if (!selected.hasStarted) {
+    const cacheKey = `${selected.org}/${selected.slug}`;
+    const cachedTasks = taskCache.get(cacheKey);
+    if (cachedTasks) {
+      this._tasks = cachedTasks;
       this.update();
       return;
     }
 
-    await this._setBusy('Loading tasks...');
+    const contestLabel = selected.title || `${selected.org}/${selected.slug}`;
+    await this._setBusy(`Loading tasks for ${contestLabel}...`);
     this._error = null;
-    this.update();
 
     try {
       const response = await requestAPI<{ items: Task[] }>(
         `tasks?org=${encodeURIComponent(selected.org)}&comp=${encodeURIComponent(selected.slug)}`
       );
       this._tasks = response.items;
+      taskCache.set(cacheKey, response.items);
     } catch (error) {
       this._error = this._asMessage(error);
     } finally {
@@ -741,11 +841,30 @@ class NitroJudgeBody extends ReactWidget {
     }
   }
 
+  private async _loadSubmissionHistory(taskId: string): Promise<void> {
+    if (!this._selectedContest) {
+      return;
+    }
+
+    try {
+      const response = await requestAPI<{ items: SubmissionResult[]; submissionCount?: number | string | null }>(
+        `submission-history?org=${encodeURIComponent(this._selectedContest.org)}&comp=${encodeURIComponent(this._selectedContest.slug)}&taskId=${encodeURIComponent(taskId)}`
+      );
+      this._submissionHistory = response.items;
+      this._submissionCount = response.submissionCount ?? this._submissionCount ?? response.items.length;
+    } catch (error) {
+      this._error = this._asMessage(error);
+      this._submissionHistory = [];
+      this._submissionCount = null;
+    } finally {
+      this.update();
+    }
+  }
+
   private async _pickOutput(): Promise<void> {
     try {
-      const selected = await this._openPicker('Pick output CSV', {
-        acceptFile: item => item.name.toLowerCase().endsWith('.csv'),
-        emptyMessage: 'No CSV files in this folder. You can still open another folder or go up.'
+      const selected = await this._openPicker('Pick output file', {
+        emptyMessage: 'No files in this folder. You can still open another folder or go up.'
       });
       if (selected) {
         this._outputPath = selected;
@@ -778,6 +897,8 @@ class NitroJudgeBody extends ReactWidget {
       return;
     }
 
+    const currentNotebook = this._currentNotebookPanel();
+
     await this._setBusy('Submitting to Nitro AI Judge and waiting for feedback...');
     this._error = null;
     this._result = null;
@@ -788,22 +909,31 @@ class NitroJudgeBody extends ReactWidget {
         comp: this._selectedContest.slug,
         taskId: this._selectedTask.id,
         outputPath: this._outputPath,
-        note: this._note
+        note: this._note,
+        submissionProxy: this._useSubmissionProxy
       };
 
       if (this._sourceMode === 'file') {
         payload.sourcePath = this._sourcePath;
       } else {
-        payload.sourceContent = notebookToPython(this._panel);
-        payload.sourceFilename = PathExt.basename(this._panel.context.path).replace(/\.ipynb$/i, '.py');
+        payload.notebookPath = currentNotebook.context.path;
       }
 
-      const response = await requestAPI<{ submission: SubmissionResult }>('submit', {
+      const response = await requestAPI<{
+        submission: SubmissionResult;
+        submissionCount?: number | string | null;
+      }>('submit', {
         body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
       this._result = response.submission;
+      this._submissionCount = response.submissionCount ?? this._submissionCount;
+      this._submissionHistory = [
+        response.submission,
+        ...this._submissionHistory.filter(item => item.id !== response.submission.id)
+      ];
+      await this._loadSubmissionHistory(this._selectedTask.id);
     } catch (error) {
       this._error = this._asMessage(error);
     } finally {
@@ -872,7 +1002,7 @@ class NitroJudgeBody extends ReactWidget {
 
     this._pickerState = {
       acceptFile: options.acceptFile,
-      currentPath: notebookDirectory(this._panel),
+      currentPath: notebookDirectory(this._currentNotebookPanel()),
       emptyMessage: options.emptyMessage ?? 'No matching files in this folder.',
       entries: [],
       error: null,
@@ -1009,6 +1139,7 @@ class NitroJudgeBody extends ReactWidget {
   private _downloadedData: TaskDataDownload[] = [];
   private _sourceMode: 'notebook' | 'file' = 'notebook';
   private _sourcePath = '';
+  private _useSubmissionProxy = false;
   private _note = '';
   private _busy = false;
   private _busyMessage: string | null = null;
@@ -1016,6 +1147,8 @@ class NitroJudgeBody extends ReactWidget {
   private _pickerResolver: ((value: string | null) => void) | null = null;
   private _pickerState: PickerState | null = null;
   private _result: SubmissionResult | null = null;
+  private _submissionHistory: SubmissionResult[] = [];
+  private _submissionCount: number | string | null = null;
 }
 
 function judgePanelId(notebook: NotebookPanel): string {
@@ -1027,6 +1160,7 @@ function createJudgePanel(app: JupyterFrontEnd, notebook: NotebookPanel): MainAr
   const widget = new MainAreaWidget({ content });
   widget.id = judgePanelId(notebook);
   widget.title.label = `Nitro AI Judge: ${PathExt.basename(notebook.context.path)}`;
+  widget.title.icon = nitroJudgeIcon;
   widget.title.closable = true;
   return widget;
 }
@@ -1056,11 +1190,13 @@ const plugin: JupyterFrontEndPlugin<void> = {
         'cellType',
         'nitro-ai-judge-submit',
         new ToolbarButton({
-          label: 'Submit to Nitro AI Judge',
+          className: 'jp-NitroJudgeToolbarButton',
+          icon: nitroJudgeIcon,
+          label: 'Nitro AI Judge',
           onClick: () => {
             openJudgePanel(app, notebook);
           },
-          tooltip: 'Open Nitro AI Judge submission tab'
+          tooltip: 'Nitro AI Judge'
         })
       );
     });
