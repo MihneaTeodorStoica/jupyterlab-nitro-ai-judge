@@ -32,6 +32,63 @@ def _nitro_cli_uses_token_login() -> bool:
         return hasattr(nitro_cli, "save_token_state")
 
 
+def _load_auth() -> dict[str, Any]:
+    load_state = getattr(nitro_cli, "load_state", None)
+    get_auth = getattr(nitro_cli, "get_auth", None)
+    if not callable(load_state) or not callable(get_auth):
+        raise tornado.web.HTTPError(
+            500, "Installed nitro-ai-judge-cli is missing auth helpers"
+        )
+
+    state = load_state() or {}
+    refresh_state = getattr(nitro_cli, "ensure_fresh_state", None)
+    if state and callable(refresh_state):
+        state = refresh_state(state) or state
+
+    auth = get_auth(state)
+    if not auth:
+        raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
+
+    cf_cookie, session_cookie, bearer = auth
+    if not session_cookie and not bearer:
+        raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
+
+    return {
+        "cookies": (cf_cookie or "", session_cookie or ""),
+        "bearer": bearer or "",
+        "state": state,
+    }
+
+
+def _login(username: str, password: str) -> dict[str, Any]:
+    username = str(username or "").strip()
+    password = str(password or "")
+    if not username or not password:
+        raise tornado.web.HTTPError(400, "Username and password are required")
+    if not _nitro_cli_uses_token_login():
+        raise tornado.web.HTTPError(
+            500, "Installed nitro-ai-judge-cli is too old for token login"
+        )
+
+    result = nitro_cli.do_login(username, password)
+    if not isinstance(result, dict):
+        raise tornado.web.HTTPError(
+            502, "Nitro AI Judge login returned an invalid response"
+        )
+    if not result.get("success") or not result.get("tokens"):
+        message = result.get("error") or "Nitro AI Judge login failed"
+        raise tornado.web.HTTPError(401, str(message))
+
+    save_token_state = getattr(nitro_cli, "save_token_state", None)
+    if not callable(save_token_state):
+        raise tornado.web.HTTPError(
+            500, "Installed nitro-ai-judge-cli cannot save token login state"
+        )
+
+    save_token_state(result["tokens"], result.get("username") or username)
+    return _load_auth()
+
+
 def _ensure_playwright_browser() -> None:
     global _PLAYWRIGHT_READY
     if _PLAYWRIGHT_READY:
