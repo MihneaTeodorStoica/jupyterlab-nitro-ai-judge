@@ -1,5 +1,5 @@
 .jp-NitroJudgePanel {
-  padding: 16px;
+  padding: 12px;
   overflow: auto;
 }
 
@@ -9,6 +9,13 @@
 
 .jp-NitroJudgeRoot {
   position: relative;
+  display: grid;
+  gap: 12px;
+  --jp-nitro-control-radius: 2px;
+  --jp-nitro-control-height: 26px;
+  --jp-nitro-task-finder-height: clamp(240px, 31vh, 290px);
+  --jp-nitro-task-data-height: 160px;
+  --jp-nitro-contest-finder-height: calc(var(--jp-nitro-task-finder-height) + var(--jp-nitro-task-data-height) + 8px);
 }
 
 .jp-NitroJudgePanel h3 {
@@ -16,56 +23,107 @@
 }
 
 .jp-NitroJudgeNotebookPath {
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--jp-border-color2);
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: color-mix(in srgb, var(--jp-layout-color1) 84%, var(--jp-layout-color2));
+  color: var(--jp-ui-font-color1);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.jp-NitroJudgeNotebookPath code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  vertical-align: top;
 }
 
 .jp-NitroJudgePanel p {
   margin: 0;
-  color: var(--jp-ui-font-color1);
 }
 
 .jp-NitroJudgePanel section {
-  margin-bottom: 16px;
-  padding: 12px 0 0;
+  margin: 0;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 0;
+  border-radius: var(--jp-nitro-control-radius);
   background: var(--jp-layout-color1);
+  overflow: hidden;
 }
 
 .jp-NitroJudgeSectionHeader {
-  padding: 0 12px 12px;
+  padding: 8px 10px 6px;
   border-bottom: 1px solid var(--jp-border-color2);
+  background: color-mix(in srgb, var(--jp-layout-color2) 52%, var(--jp-layout-color1));
 }
 
 .jp-NitroJudgeSectionHeader p {
   margin-top: 4px;
 }
 
+.jp-NitroJudgeSectionBody {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
 .jp-NitroJudgeStatusLine,
 .jp-NitroJudgeGrid,
 .jp-NitroJudgeSummary,
-.jp-NitroJudgeTable,
+.jp-NitroJudgeTableWrap,
 .jp-NitroJudgeSubheading {
-  margin: 12px;
+  margin: 0;
 }
 
 .jp-NitroJudgeStatusLine {
-  padding-top: 4px;
-  padding-left: 12px;
-  padding-right: 12px;
-  padding-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color2);
+  line-height: 1.4;
+}
+
+.jp-NitroJudgeStatusLine strong {
+  margin-left: 0;
 }
 
 .jp-NitroJudgeGrid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+}
+
+.jp-NitroJudgeInlineField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
 }
 
 .jp-NitroJudgeFieldLabel {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.jp-NitroJudgeFieldBlock {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.jp-NitroJudgeLoginGrid {
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+.jp-NitroJudgeLoginActions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 .jp-NitroJudgeFieldTitle {
@@ -76,70 +134,133 @@
 
 .jp-NitroJudgeGrid input,
 .jp-NitroJudgeGrid select,
-.jp-NitroJudgeGrid textarea {
+.jp-NitroJudgeGrid textarea,
+.jp-NitroJudgeFieldLabel input,
+.jp-NitroJudgeFieldLabel textarea,
+.jp-NitroJudgeContestFinder input,
+.jp-NitroJudgeTaskFinder input,
+.jp-NitroJudgeSourceGroup input,
+.jp-NitroJudgeTaskDataInput {
   width: 100%;
-  min-height: 28px;
-  padding: 4px 8px;
+  min-height: var(--jp-nitro-control-height);
+  padding: 3px 8px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 0;
+  border-radius: var(--jp-nitro-control-radius);
   background: var(--jp-input-background);
   color: var(--jp-ui-font-color1);
   box-sizing: border-box;
+  font: inherit;
+}
+
+.jp-NitroJudgeDataTarget .jp-NitroJudgeTaskDataInput {
+  min-height: var(--jp-nitro-control-height);
+  padding: 3px 8px;
+}
+
+.jp-NitroJudgeGrid textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.jp-NitroJudgeGrid select {
+  padding-right: 32px;
 }
 
 .jp-NitroJudgeRow {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .jp-NitroJudgeRow input {
   flex: 1 1 auto;
+  min-width: 0;
 }
 
 .jp-NitroJudgeActions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 12px;
+  justify-content: flex-start;
+  margin: 0;
 }
 
+.jp-NitroJudgeActionButton,
 .jp-NitroJudgeActions button,
 .jp-NitroJudgePickerItem,
 .jp-NitroJudgeOverlayHeader button {
-  min-height: 28px;
-  padding: 4px 12px;
+  min-height: var(--jp-nitro-control-height);
+  padding: 3px 9px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 0;
-  background: var(--jp-layout-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
   color: var(--jp-ui-font-color1);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  line-height: 1.2;
 }
 
-.jp-NitroJudgeActions button:first-child,
-.jp-NitroJudgeOverlay .jp-NitroJudgeActions button:last-child {
+.jp-NitroJudgeActionButtonPrimary {
   background: var(--jp-brand-color1);
   border-color: var(--jp-brand-color1);
   color: var(--jp-ui-inverse-font-color1);
 }
 
-.jp-NitroJudgeOverlayHeader button,
-.jp-NitroJudgeOverlay .jp-NitroJudgeActions button:first-child {
-  background: var(--jp-layout-color2);
-  border-color: var(--jp-border-color2);
-  color: var(--jp-ui-font-color1);
+.jp-NitroJudgeActionButtonPrimary:hover:not([disabled]) {
+  filter: brightness(1.03);
 }
 
-.jp-NitroJudgeActions button[disabled] {
+.jp-NitroJudgeActionButton:hover:not([disabled]),
+.jp-NitroJudgePickerItem:hover:not([disabled]),
+.jp-NitroJudgeOverlayHeader button:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--jp-brand-color1) 6%, var(--jp-layout-color1));
+  border-color: color-mix(in srgb, var(--jp-brand-color1) 18%, var(--jp-border-color2));
+}
+
+.jp-NitroJudgeActionButton:focus-visible,
+.jp-NitroJudgePickerItem:focus-visible,
+.jp-NitroJudgeOverlayHeader button:focus-visible,
+.jp-NitroJudgeGrid input:focus-visible,
+.jp-NitroJudgeGrid select:focus-visible,
+.jp-NitroJudgeGrid textarea:focus-visible,
+.jp-NitroJudgeFieldLabel input:focus-visible,
+.jp-NitroJudgeFieldLabel textarea:focus-visible,
+.jp-NitroJudgeContestFinder input:focus-visible,
+.jp-NitroJudgeTaskFinder input:focus-visible,
+.jp-NitroJudgeSourceGroup input:focus-visible,
+.jp-NitroJudgeTaskDataInput:focus-visible,
+.jp-NitroJudgeContestItem:focus-visible {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+}
+
+.jp-NitroJudgeContestRefresh {
+  white-space: nowrap;
+}
+
+.jp-NitroJudgeBrowseButton {
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  white-space: nowrap;
+}
+
+.jp-NitroJudgeActionButton[disabled],
+.jp-NitroJudgePickerItem[disabled],
+.jp-NitroJudgeOverlayHeader button[disabled] {
   opacity: 0.6;
   cursor: default;
 }
 
 .jp-NitroJudgeMessage {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 0;
-  margin-bottom: 12px;
+  border-radius: var(--jp-nitro-control-radius);
+  margin: 0;
 }
 
 .jp-NitroJudgeMessage[data-kind='error'] {
@@ -153,25 +274,33 @@
 
 .jp-NitroJudgeSummary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
 }
 
 .jp-NitroJudgeStat {
-  padding: 10px;
-  border-radius: 0;
+  padding: 6px 8px;
+  border-radius: var(--jp-nitro-control-radius);
   background: var(--jp-layout-color2);
   border: 1px solid var(--jp-border-color2);
 }
 
 .jp-NitroJudgeStat strong {
   display: block;
-  font-size: 1.2em;
-  margin-top: 4px;
+  font-size: 1.1em;
+  margin-top: 2px;
+}
+
+.jp-NitroJudgeTableWrap {
+  overflow: auto;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
 }
 
 .jp-NitroJudgeTable {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
 }
 
@@ -179,7 +308,7 @@
 .jp-NitroJudgeTable td {
   border-bottom: 1px solid var(--jp-border-color3);
   text-align: left;
-  padding: 8px;
+  padding: 6px 8px;
   vertical-align: top;
 }
 
@@ -192,36 +321,61 @@
   margin: 0;
   padding: 0;
   border: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jp-NitroJudgeTaskDataGroup {
+  height: var(--jp-nitro-task-data-height);
+  overflow: auto;
 }
 
 .jp-NitroJudgeSourceGroup .jp-NitroJudgeFieldTitle {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .jp-NitroJudgeRadioGroup {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-  border: 1px solid var(--jp-border-color2);
-  background: var(--jp-layout-color1);
+  grid-template-columns: repeat(auto-fit, minmax(110px, 140px));
+  gap: 6px;
+  justify-content: start;
 }
 
 .jp-NitroJudgeSourceOption {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 6px 8px;
-  font-weight: 400;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 3px 8px;
+  font-weight: 500;
   cursor: pointer;
-  min-height: 0;
-}
-
-.jp-NitroJudgeSourceOption + .jp-NitroJudgeSourceOption {
-  border-left: 1px solid var(--jp-border-color2);
+  min-height: var(--jp-nitro-control-height);
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
+  text-align: left;
 }
 
 .jp-NitroJudgeSourceOption[data-selected='true'] {
   background: color-mix(in srgb, var(--jp-brand-color1) 10%, var(--jp-layout-color1));
+  border-color: var(--jp-brand-color1);
+}
+
+.jp-NitroJudgeSourceOption[data-disabled='true'] {
+  color: var(--jp-ui-font-color3);
+  cursor: default;
+  background: color-mix(in srgb, var(--jp-layout-color2) 70%, var(--jp-layout-color1));
+}
+
+.jp-NitroJudgeSourceOption:hover:not([disabled]):not([data-disabled='true']) {
+  background: color-mix(in srgb, var(--jp-brand-color1) 6%, var(--jp-layout-color1));
+  border-color: color-mix(in srgb, var(--jp-brand-color1) 18%, var(--jp-border-color2));
+}
+
+.jp-NitroJudgeSourceOption:has(input:focus-visible) {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
 }
 
 .jp-NitroJudgeSourceOption input {
@@ -230,44 +384,44 @@
   pointer-events: none;
 }
 
-.jp-NitroJudgeSourceOptionTitle,
-.jp-NitroJudgeSourceOptionDetail {
-  display: block;
-}
-
 .jp-NitroJudgeSourceOptionTitle {
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.2;
-}
-
-.jp-NitroJudgeSourceOptionDetail {
-  margin-top: 2px;
-  color: var(--jp-ui-font-color2);
-  font-size: 0.9em;
-  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .jp-NitroJudgeSourceHint {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border: 1px solid var(--jp-border-color2);
-  background: var(--jp-layout-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
 }
 
 .jp-NitroJudgeDataGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  justify-content: stretch;
+  align-items: stretch;
+  align-content: stretch;
   border: 1px solid var(--jp-border-color2);
-  background: var(--jp-border-color2);
+  padding: 4px;
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
 }
 
 .jp-NitroJudgeCheckbox {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: 12px minmax(0, 1fr);
   align-items: center;
-  column-gap: 8px;
-  min-height: 32px;
-  padding: 6px 10px;
+  column-gap: 5px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
   background: var(--jp-layout-color1);
   color: var(--jp-ui-font-color1);
   cursor: pointer;
@@ -276,7 +430,7 @@
 .jp-NitroJudgeCheckbox[data-available='false'] {
   color: var(--jp-ui-font-color3);
   cursor: default;
-  background: color-mix(in srgb, var(--jp-layout-color2) 70%, var(--jp-layout-color1));
+  background: color-mix(in srgb, var(--jp-layout-color2) 82%, var(--jp-layout-color1));
 }
 
 .jp-NitroJudgeCheckbox input {
@@ -286,8 +440,8 @@
 }
 
 .jp-NitroJudgeCheckboxBox {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   border: 1px solid var(--jp-border-color1);
   background: var(--jp-input-background);
   box-sizing: border-box;
@@ -296,12 +450,12 @@
 .jp-NitroJudgeCheckbox input:checked + .jp-NitroJudgeCheckboxBox {
   border-color: var(--jp-brand-color1);
   background: var(--jp-brand-color1);
-  box-shadow: inset 0 0 0 3px var(--jp-layout-color1);
+  box-shadow: inset 0 0 0 2px var(--jp-layout-color1);
 }
 
 .jp-NitroJudgeCheckbox input:disabled + .jp-NitroJudgeCheckboxBox {
   border-color: var(--jp-border-color2);
-  background: var(--jp-layout-color2);
+  background: var(--jp-layout-color1);
   box-shadow: none;
 }
 
@@ -310,20 +464,306 @@
   outline-offset: 2px;
 }
 
+.jp-NitroJudgeCheckbox:focus-within,
+.jp-NitroJudgeProxyToggle:focus-within {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+}
+
 .jp-NitroJudgeCheckboxLabel {
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.jp-NitroJudgeDataTarget {
+  margin-top: 0;
+}
+
+.jp-NitroJudgeDownloadList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-NitroJudgeContestFinder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 0 auto;
+  height: var(--jp-nitro-contest-finder-height);
+  min-height: 0;
+}
+
+.jp-NitroJudgeTaskFinder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 0 auto;
+  height: var(--jp-nitro-task-finder-height);
+  min-height: 0;
+}
+
+.jp-NitroJudgeSubmissionLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.jp-NitroJudgeSubmissionSidebar,
+.jp-NitroJudgeSubmissionMain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.jp-NitroJudgeSubmissionMain {
+  min-height: 0;
+}
+
+.jp-NitroJudgeSubmissionColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.jp-NitroJudgeSubmissionColumn {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jp-NitroJudgeSubmissionNote {
+  grid-column: 1 / -1;
+}
+
+.jp-NitroJudgeSubmissionBottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.jp-NitroJudgeSubmissionSubmit {
+  grid-column: 1 / -1;
+}
+
+.jp-NitroJudgeSubmissionSubmit .jp-NitroJudgeActionButton {
+  width: 100%;
+}
+
+.jp-NitroJudgeContestFinderBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: end;
+  min-width: 0;
+}
+
+.jp-NitroJudgeTaskFinderBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: end;
+  min-width: 0;
+}
+
+.jp-NitroJudgeContestSearch {
+  min-width: 0;
+}
+
+.jp-NitroJudgeTaskSearch {
+  min-width: 0;
+}
+
+.jp-NitroJudgeContestSearchActions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.jp-NitroJudgeTaskSearchActions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.jp-NitroJudgeContestFinderMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.jp-NitroJudgeTaskFinderMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.jp-NitroJudgeContestFinder > .jp-NitroJudgeFieldLabel:last-child {
+  margin-top: auto;
+}
+
+.jp-NitroJudgeContestBadge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 1px 6px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.jp-NitroJudgeContestBadge[data-state='running'] {
+  border-color: color-mix(in srgb, var(--jp-brand-color1) 40%, var(--jp-border-color2));
+  background: color-mix(in srgb, var(--jp-brand-color1) 12%, var(--jp-layout-color1));
+  color: var(--jp-brand-color1);
+}
+
+.jp-NitroJudgeContestBadge[data-state='closed'] {
+  background: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-NitroJudgeContestBadge[data-state='idle'] {
+  background: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-NitroJudgeContestList {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.jp-NitroJudgeTaskList {
+  display: grid;
+  gap: 4px;
+  grid-auto-rows: 46px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.jp-NitroJudgeContestItem {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+}
+
+.jp-NitroJudgeTaskItem {
+  width: 100%;
+  height: 46px;
+  padding: 6px 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+}
+
+.jp-NitroJudgeContestItem:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--jp-brand-color1) 6%, var(--jp-layout-color1));
+}
+
+.jp-NitroJudgeTaskItem:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--jp-brand-color1) 6%, var(--jp-layout-color1));
+}
+
+.jp-NitroJudgeContestItem:focus-visible {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+}
+
+.jp-NitroJudgeTaskItem:focus-visible {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+}
+
+.jp-NitroJudgeContestItem[data-selected='true'] {
+  border-color: var(--jp-brand-color1);
+  background: color-mix(in srgb, var(--jp-brand-color1) 10%, var(--jp-layout-color1));
+  box-shadow: inset 0 0 0 1px var(--jp-brand-color1);
+}
+
+.jp-NitroJudgeTaskItem[data-selected='true'] {
+  border-color: var(--jp-brand-color1);
+  background: color-mix(in srgb, var(--jp-brand-color1) 10%, var(--jp-layout-color1));
+  box-shadow: inset 0 0 0 1px var(--jp-brand-color1);
+}
+
+.jp-NitroJudgeContestItemMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.jp-NitroJudgeTaskItemMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.jp-NitroJudgeTaskItemMain strong,
+.jp-NitroJudgeTaskItemMain span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.jp-NitroJudgeDataTarget {
-  margin-top: 6px;
+.jp-NitroJudgeContestEmpty {
+  padding: 6px 2px;
+  color: var(--jp-ui-font-color2);
 }
 
-.jp-NitroJudgeDownloadList {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  color: var(--jp-ui-font-color1);
+.jp-NitroJudgeTaskEmpty {
+  padding: 6px 2px;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-NitroJudgeTaskEmptyBox {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-nitro-control-radius);
+  background: var(--jp-layout-color1);
+  box-sizing: border-box;
 }
 
 .jp-NitroJudgePickerList {
@@ -338,6 +778,12 @@
   background: color-mix(in srgb, var(--jp-brand-color1) 15%, var(--jp-layout-color2));
 }
 
+.jp-NitroJudgePickerItem {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
 .jp-NitroJudgePickerNav {
   font-weight: 700;
 }
@@ -348,19 +794,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
   background: color-mix(in srgb, var(--jp-dialog-background) 90%, transparent);
   z-index: 1;
 }
 
 .jp-NitroJudgeOverlayCard {
-  width: min(640px, 100%);
-  max-height: min(520px, 100%);
+  width: min(560px, 100%);
+  max-height: min(480px, 100%);
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 0;
+  border-radius: var(--jp-nitro-control-radius);
   background: var(--jp-layout-color1);
   box-shadow: var(--jp-elevation-z20);
 }
@@ -376,17 +823,14 @@
   margin: 0;
 }
 
-.jp-NitroJudgeOverlayCard > .jp-NitroJudgeMuted {
-  margin: 12px 0 8px;
-}
-
 .jp-NitroJudgeOverlay .jp-NitroJudgeActions {
-  margin: 12px 0 0;
+  margin: 0;
 }
 
 .jp-NitroJudgeMuted {
   color: var(--jp-ui-font-color2);
-  font-size: 0.95em;
+  font-size: 0.9em;
+  line-height: 1.3;
 }
 
 @media (max-width: 768px) {
@@ -394,13 +838,52 @@
     padding: 12px;
   }
 
+  .jp-NitroJudgeSectionBody {
+    padding: 10px 12px 12px;
+  }
+
+  .jp-NitroJudgeInlineField {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-NitroJudgeSubmissionColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-NitroJudgeContestFinderBar {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-NitroJudgeContestSearchActions,
+  .jp-NitroJudgeActions {
+    justify-content: stretch;
+  }
+
+  .jp-NitroJudgeLoginActions {
+    justify-content: stretch;
+  }
+
+  .jp-NitroJudgeContestSearchActions > .jp-NitroJudgeActionButton,
+  .jp-NitroJudgeLoginActions > .jp-NitroJudgeActionButton,
+  .jp-NitroJudgeActions > .jp-NitroJudgeActionButton {
+    flex: 1 1 0;
+  }
+
+  .jp-NitroJudgeContestItem {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .jp-NitroJudgeContestBadge {
+    align-self: flex-start;
+  }
+
   .jp-NitroJudgeRadioGroup {
     grid-template-columns: 1fr;
   }
 
-  .jp-NitroJudgeSourceOption + .jp-NitroJudgeSourceOption {
-    border-left: 0;
-    border-top: 1px solid var(--jp-border-color2);
+  .jp-NitroJudgeDataGrid {
+    grid-template-columns: 1fr;
   }
 
   .jp-NitroJudgeRow {
@@ -409,118 +892,54 @@
   }
 }
 
-
-.jp-NitroJudgeBrowseButton,
-.jp-NitroJudgeActionButton {
-  min-height: 32px;
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
-}
-
-.jp-NitroJudgeBrowseButton {
-  border-color: var(--jp-brand-color1);
-  background: var(--jp-layout-color1);
-  color: var(--jp-brand-color1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-.jp-NitroJudgeBrowseButton:hover:not([disabled]) {
-  background: var(--jp-layout-color2);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-  transform: translateY(-1px);
-}
-
-.jp-NitroJudgeActionButtonPrimary {
-  border-color: var(--jp-brand-color1);
-  background: var(--jp-brand-color1);
-  color: var(--jp-ui-inverse-font-color1);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--jp-brand-color1) 35%, transparent);
-}
-
-.jp-NitroJudgeActionButtonPrimary:hover:not([disabled]) {
-  background: var(--jp-brand-color0);
-  border-color: var(--jp-brand-color0);
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--jp-brand-color1) 45%, transparent);
-  transform: translateY(-1px);
-}
-.jp-NitroJudgeFieldLabel + .jp-NitroJudgeCheckbox {
-  margin-top: 8px;
+@media (max-width: 960px) {
+  .jp-NitroJudgeSubmissionLayout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .jp-NitroJudgePrejudgeOutput {
   background: var(--jp-layout-color2);
   border: 1px solid var(--jp-border-color2);
-  border-radius: 10px;
+  border-radius: var(--jp-nitro-control-radius);
   color: var(--jp-content-font-color1);
   max-height: 220px;
   overflow: auto;
-  padding: 10px 12px;
+  padding: 8px 10px;
   white-space: pre-wrap;
 }
-/* Nitro judge polish: consistent controls, readable toggles, and compact history. */
-.jp-NitroJudgeBrowseButton,
-.jp-NitroJudgeActionButton,
-.jp-NitroJudgeActions button {
-  align-items: center;
-  border-radius: 8px;
-  display: inline-flex;
-  font-weight: 600;
-  gap: 6px;
-  justify-content: center;
-  min-height: 32px;
-  padding: 6px 12px;
-}
 
-.jp-NitroJudgeBrowseButton {
-  white-space: nowrap;
-}
-
-.jp-NitroJudgeProxyToggle {
-  align-items: flex-start;
-  display: flex;
-  gap: 8px;
-  line-height: 1.35;
-  min-width: 0;
-}
-
-.jp-NitroJudgeProxyToggle input {
-  flex: 0 0 auto;
-  margin-top: 2px;
-}
-
-.jp-NitroJudgeCheckboxText {
-  display: inline-block;
-  min-width: 0;
-  white-space: normal;
-  word-break: normal;
-}
-
-.jp-NitroJudgeHistory {
-  margin-top: 16px;
-}
-
-.jp-NitroJudgeHistoryList {
+.jp-NitroJudgeProxyBlock {
   display: grid;
   gap: 8px;
 }
 
-.jp-NitroJudgeHistoryItem {
+.jp-NitroJudgeProxyToggle {
   align-items: center;
   border: 1px solid var(--jp-border-color2);
-  border-radius: 10px;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 10px 12px;
+  border-radius: var(--jp-nitro-control-radius);
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 12px minmax(0, 1fr);
+  line-height: 1.2;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--jp-layout-color2);
 }
 
-.jp-NitroJudgeHistoryScores {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-  text-align: right;
+.jp-NitroJudgeProxyToggle input {
+  margin: 0;
+}
+
+.jp-NitroJudgeProxyToggle:focus-within {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 1px;
+}
+
+.jp-NitroJudgeCheckboxText {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  word-break: normal;
+  line-height: 1.2;
 }

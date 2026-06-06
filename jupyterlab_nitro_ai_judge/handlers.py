@@ -4,12 +4,16 @@ import asyncio
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
+import shutil
 import threading
 import time
+import zipfile
 from typing import Any
+from pathlib import Path
 
 import tornado.web
 from jupyter_server.base.handlers import APIHandler
@@ -19,7 +23,7 @@ import nitro_cli
 
 
 _PLAYWRIGHT_READY = False
-_CACHE_TTL_SECONDS = 300.0
+_CACHE_TTL_SECONDS = 24 * 60 * 60.0
 _CACHE_LOCK = threading.Lock()
 _CONTEST_CACHE: dict[Any, tuple[float, list[dict[str, Any]]]] = {}
 _TASK_CACHE: dict[Any, tuple[float, list[dict[str, Any]]]] = {}
@@ -40,7 +44,20 @@ def _load_auth() -> dict[str, Any]:
             500, "Installed nitro-ai-judge-cli is missing auth helpers"
         )
 
-    state = load_state() or {}
+    try:
+        state = load_state() or {}
+    except json.JSONDecodeError:
+        state = {}
+        state_file = getattr(nitro_cli, "STATE_FILE", None)
+        if isinstance(state_file, str) and os.path.exists(state_file):
+            with open(state_file, encoding="utf-8") as f:
+                raw = f.read().lstrip("\ufeff \t\r\n")
+            try:
+                parsed, _ = json.JSONDecoder().raw_decode(raw)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict):
+                state = parsed
     refresh_state = getattr(nitro_cli, "ensure_fresh_state", None)
     if state and callable(refresh_state):
         state = refresh_state(state) or state
@@ -52,6 +69,18 @@ def _load_auth() -> dict[str, Any]:
     cf_cookie, session_cookie, bearer = auth
     if not session_cookie and not bearer:
         raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
+
+    token_is_expired = getattr(nitro_cli, "token_is_expired", None)
+    refresh_saved_tokens = getattr(nitro_cli, "refresh_saved_tokens", None)
+    if callable(token_is_expired) and callable(refresh_saved_tokens) and bearer:
+        if token_is_expired(bearer, buffer_seconds=600):
+            refreshed = refresh_saved_tokens(state)
+            if refreshed:
+                state = refreshed
+                auth = get_auth(state)
+                if not auth:
+                    raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
+                cf_cookie, session_cookie, bearer = auth
 
     return {
         "cookies": (cf_cookie or "", session_cookie or ""),
@@ -99,25 +128,44 @@ def _ensure_playwright_browser() -> None:
     _PLAYWRIGHT_READY = True
 
 
-def _serialize_competition(item: dict[str, Any]) -> dict[str, Any]:
-    raw_start = item.get("competitionStart")
-    start = raw_start
-    if isinstance(raw_start, str):
+def _coerce_timestamp(value: Any) -> Any:
+    if isinstance(value, str):
         try:
-            start = int(raw_start)
+            return int(value)
         except ValueError:
-            start = raw_start
+            return value
+    return value
+
+
+def _serialize_competition(item: dict[str, Any]) -> dict[str, Any]:
+    start = _coerce_timestamp(item.get("competitionStart"))
+    end = _coerce_timestamp(item.get("competitionEnd"))
+    now_ms = int(time.time() * 1000)
 
     has_started = True
     if isinstance(start, (int, float)):
-        has_started = start <= int(time.time() * 1000)
+        has_started = start <= now_ms
+
+    is_running = has_started
+    if isinstance(end, (int, float)):
+        is_running = has_started and now_ms < end
+
+    has_access = item.get("_nitroHasAccess")
+    if has_access is None:
+        for key in ("hasAccess", "has_access", "accessible", "isAccessible", "canAccess"):
+            if key in item:
+                has_access = item.get(key)
+                break
 
     return {
         "org": item.get("organizationSlug") or "",
         "slug": item.get("competitionSlug") or "",
         "title": item.get("title") or "",
         "competitionStart": start,
+        "competitionEnd": end,
         "hasStarted": has_started,
+        "isRunning": is_running,
+        "hasAccess": True if has_access is None else bool(has_access),
     }
 
 
@@ -127,6 +175,210 @@ def _serialize_task(item: dict[str, Any]) -> dict[str, Any]:
         "title": item.get("title") or "",
         "synopsis": item.get("synopsis") or "",
     }
+
+
+def _normalize_task_data_category(category: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(category or "").strip().lower()).strip("_")
+    aliases = {
+        "prejudging": "pre_judging_script",
+        "prejudgingscript": "pre_judging_script",
+        "prejudging_script": "pre_judging_script",
+        "pre_judging": "pre_judging_script",
+        "pre_judge": "pre_judging_script",
+        "pre_judge_script": "pre_judging_script",
+        "starter_kit": "custom_archive",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized == "pre_judging_script":
+        return normalized
+    return nitro_cli.normalize_task_file_category(normalized)
+
+
+def _task_page_has_prejudging_script(cookies: tuple[str, str], org: str, comp: str, task_id: str) -> bool:
+    status, body, _ = nitro_cli.request_text(
+        path=f"/competitions/{org}/{comp}/{task_id}/view",
+        cookies=cookies,
+        timeout=30,
+    )
+    if status != 200:
+        return False
+    text = body.lower()
+    return "pre_judging_script/download" in text or "prejudging_script/download" in text
+
+
+def _task_page_prejudging_href(
+    cookies: tuple[str, str], org: str, comp: str, task_id: str
+) -> str | None:
+    status, body, _ = nitro_cli.request_text(
+        path=f"/competitions/{org}/{comp}/{task_id}/view",
+        cookies=cookies,
+        timeout=30,
+    )
+    if status != 200:
+        return None
+
+    match = re.search(
+        r'href="([^"]*pre[_-]?judg(?:ing)?[_-]?script/download[^"]*)"',
+        body,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1)
+
+    match = re.search(
+        r"href='([^']*pre[_-]?judg(?:ing)?[_-]?script/download[^']*)'",
+        body,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1)
+
+    return None
+
+
+def _load_task_data_options(
+    auth: dict[str, Any], org: str, comp: str, task_id: str
+) -> list[dict[str, Any]]:
+    items = nitro_cli.get_task_data_options(auth["cookies"], auth["bearer"], org, comp, task_id)
+    if not any(item.get("category") == "pre_judging_script" for item in items):
+        if _task_page_has_prejudging_script(auth["cookies"], org, comp, task_id):
+            items.append(
+                {
+                    "category": "pre_judging_script",
+                    "label": "Pre-judging script",
+                    "available": True,
+                }
+            )
+    return items
+
+
+def _download_task_data(
+    auth: dict[str, Any],
+    org: str,
+    comp: str,
+    task_id: str,
+    categories: list[str] | None,
+    output_dir: str,
+    force: bool,
+) -> list[dict[str, Any]]:
+    explicit_categories = categories is not None
+    normalized_categories = (
+        [_normalize_task_data_category(category) for category in categories] if categories else None
+    )
+    if normalized_categories is None:
+        normalized_categories = [
+            item["category"]
+            for item in _load_task_data_options(auth, org, comp, task_id)
+            if item.get("available")
+        ]
+
+    if not normalized_categories:
+        raise RuntimeError("No downloadable task data files found")
+
+    task_file_links = nitro_cli.load_task_file_links(auth["cookies"], org, comp, task_id)
+    results: list[dict[str, Any]] = []
+    for category in normalized_categories:
+        if category == "statement":
+            body = nitro_cli.task_statement_markdown(
+                auth["cookies"], auth["bearer"], org, comp, task_id
+            )
+            headers: dict[str, str] = {}
+        elif category == "pre_judging_script":
+            href = _task_page_prejudging_href(auth["cookies"], org, comp, task_id)
+            if not href:
+                if not explicit_categories:
+                    continue
+                raise RuntimeError("Could not find a pre-judging script download link")
+            status, body, headers = nitro_cli.request(
+                path=nitro_cli.request_path_from_href(href),
+                cookies=auth["cookies"],
+                timeout=180,
+            )
+            if status != 200 or nitro_cli.response_is_html(body, headers):
+                if not explicit_categories:
+                    continue
+                preview = body.decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Could not download {category}: HTTP {status}: {preview[:200]}"
+                )
+        else:
+            status, body, headers = nitro_cli.download_task_file(
+                auth["cookies"],
+                auth["bearer"],
+                org,
+                comp,
+                task_id,
+                category,
+                task_file_links,
+            )
+            if status != 200 or nitro_cli.response_is_html(body, headers):
+                if not explicit_categories:
+                    continue
+                preview = body.decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Could not download {category}: HTTP {status}: {preview[:200]}"
+                )
+
+        path = nitro_cli.write_task_file(
+            body,
+            headers,
+            category,
+            None,
+            output_dir,
+            force=force,
+        )
+        path = _expand_downloaded_archive(path, force=force)
+        results.append({"category": category, "path": path, "bytes": len(body)})
+
+    if not results:
+        raise RuntimeError("No downloadable task data files found")
+    return results
+
+
+def _expand_downloaded_archive(path: str, *, force: bool) -> str:
+    candidate = Path(path)
+    if not candidate.is_file() or not zipfile.is_zipfile(candidate):
+        return path
+
+    target_dir = candidate.with_suffix("")
+    if target_dir.exists():
+        if not force:
+            raise RuntimeError(f"Refusing to overwrite existing extracted folder: {target_dir}")
+        if target_dir.is_dir():
+            shutil.rmtree(target_dir)
+        else:
+            target_dir.unlink()
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(candidate) as archive:
+        archive.extractall(target_dir)
+    candidate.unlink()
+
+    for nested_zip in sorted(target_dir.rglob("*.zip")):
+        if nested_zip.is_file() and zipfile.is_zipfile(nested_zip):
+            _expand_nested_archive(nested_zip, force=force)
+
+    return str(target_dir)
+
+
+def _expand_nested_archive(path: Path, *, force: bool) -> None:
+    target_dir = path.with_suffix("")
+    if target_dir.exists():
+        if not force:
+            raise RuntimeError(f"Refusing to overwrite existing extracted folder: {target_dir}")
+        if target_dir.is_dir():
+            shutil.rmtree(target_dir)
+        else:
+            target_dir.unlink()
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path) as archive:
+        archive.extractall(target_dir)
+    path.unlink()
+
+    for nested_zip in sorted(target_dir.rglob("*.zip")):
+        if nested_zip.is_file() and zipfile.is_zipfile(nested_zip):
+            _expand_nested_archive(nested_zip, force=force)
 
 
 def _serialize_submission(item: dict[str, Any]) -> dict[str, Any]:
@@ -202,6 +454,70 @@ def _cache_set(
     return _copy_items(copied)
 
 
+def _is_login_redirect_error(error: Exception) -> bool:
+    message = str(error)
+    return "SingleFetchRedirect" in message and '"/login"' in message
+
+
+def _load_accessible_competitions(auth: dict[str, Any]) -> list[dict[str, Any]]:
+    page = 1
+    page_size = 100
+    items: list[dict[str, Any]] = []
+
+    while True:
+        status, body, _ = nitro_cli.api_request_text(
+            path="/competitions",
+            bearer=auth["bearer"],
+            params={"page": page, "page_size": page_size},
+        )
+        if status != 200:
+            if status in {401, 403}:
+                raise tornado.web.HTTPError(401, "Nitro AI Judge login expired")
+            break
+
+        data = nitro_cli.body_json(body)
+        parsed = nitro_cli.list_payload(data, "competitions", "items", "data")
+        if parsed is None:
+            if isinstance(data, list):
+                return [
+                    {**item, "_nitroHasAccess": True}
+                    for item in data
+                    if isinstance(item, dict)
+                ]
+            break
+
+        items.extend(
+            {**item, "_nitroHasAccess": True}
+            for item in parsed
+            if isinstance(item, dict)
+        )
+        last_page = nitro_cli.int_payload(
+            data,
+            "lastPage",
+            "last_page",
+            "totalPages",
+            "total_pages",
+            default=page,
+        )
+        if page >= last_page:
+            return items
+        page += 1
+
+    # Older deployments may not expose the access-scoped API endpoint.
+    return [
+        item
+        for item in nitro_cli.load_competitions(
+            auth["cookies"],
+            auth["bearer"],
+            page=None,
+            page_size=100,
+            featured=None,
+            all_pages=True,
+        )
+        if isinstance(item, dict)
+    ]
+
+
 def _load_competitions_cached(auth: dict[str, Any], force: bool) -> list[dict[str, Any]]:
     key = _auth_cache_key(auth)
     if not force:
@@ -209,14 +525,12 @@ def _load_competitions_cached(auth: dict[str, Any], force: bool) -> list[dict[st
         if cached is not None:
             return cached
 
-    items = nitro_cli.load_competitions(
-        auth["cookies"],
-        auth["bearer"],
-        page=None,
-        page_size=100,
-        featured=None,
-        all_pages=True,
-    )
+    try:
+        items = _load_accessible_competitions(auth)
+    except RuntimeError as exc:
+        if _is_login_redirect_error(exc):
+            raise tornado.web.HTTPError(401, "Nitro AI Judge login expired") from exc
+        raise
     return _cache_set(_CONTEST_CACHE, key, items)
 
 
@@ -229,29 +543,13 @@ def _load_tasks_cached(
         if cached is not None:
             return cached
 
-    items = nitro_cli.load_tasks(auth["cookies"], auth["bearer"], org, comp)
+    try:
+        items = nitro_cli.load_tasks(auth["cookies"], auth["bearer"], org, comp)
+    except RuntimeError as exc:
+        if _is_login_redirect_error(exc):
+            raise tornado.web.HTTPError(401, "Nitro AI Judge login expired") from exc
+        raise
     return _cache_set(_TASK_CACHE, key, items)
-
-
-def _load_submission_history(
-    cookies: tuple[str, str],
-    bearer: str,
-    org: str,
-    comp: str,
-    task_id: str,
-) -> list[dict[str, Any]]:
-    items, _ = nitro_cli.load_submissions(
-        cookies,
-        bearer,
-        org,
-        comp,
-        task_id,
-        author=None,
-        page=1,
-        page_size=100,
-        mode="partial",
-    )
-    return [item for item in items if isinstance(item, dict)]
 
 
 def _create_submission_through_proxy(
@@ -337,11 +635,14 @@ class StatusHandler(NitroBaseHandler):
             auth = await asyncio.to_thread(_load_auth)
         except Exception:
             auth = {}
+        logged_in = bool(auth.get("cookies") or auth.get("bearer"))
 
         self.write_json(
             {
-                "authenticated": bool(auth.get("cookies") or auth.get("bearer")),
+                "loggedIn": logged_in,
+                "username": (auth.get("state") or {}).get("username"),
                 "tokenLogin": _nitro_cli_uses_token_login(),
+                "authenticated": logged_in,
             }
         )
 
@@ -394,37 +695,8 @@ class TaskDataOptionsHandler(NitroBaseHandler):
             raise tornado.web.HTTPError(400, "Missing org, comp, or task")
 
         auth = await asyncio.to_thread(_load_auth)
-        items = await asyncio.to_thread(
-            nitro_cli.get_task_data_options,
-            auth["cookies"],
-            auth["bearer"],
-            org,
-            comp,
-            task_id,
-        )
+        items = await asyncio.to_thread(_load_task_data_options, auth, org, comp, task_id)
         self.write_json({"items": items})
-
-
-class SubmissionHistoryHandler(NitroBaseHandler):
-    @tornado.web.authenticated
-    async def get(self) -> None:
-        org = self.get_argument("org", "").strip()
-        comp = self.get_argument("comp", "").strip()
-        task_id = str(self.get_argument("taskId", "")).strip()
-        if not org or not comp or not task_id:
-            raise tornado.web.HTTPError(400, "Missing org, comp, or task")
-
-        auth = await asyncio.to_thread(_load_auth)
-        items = await asyncio.to_thread(
-            _load_submission_history,
-            auth["cookies"],
-            auth["bearer"],
-            org,
-            comp,
-            task_id,
-        )
-        submissions = [_serialize_submission(item) for item in items]
-        self.write_json({"items": submissions, "count": len(submissions)})
 
 
 class SubmitHandler(NitroBaseHandler):
@@ -435,9 +707,14 @@ class SubmitHandler(NitroBaseHandler):
         comp = data.get("comp", "").strip()
         task_id = str(data.get("taskId", "")).strip()
         output_path = data.get("outputPath", "").strip()
-        source_path = data.get("sourcePath", "").strip() or None
+        source_path = str(data.get("sourcePath") or "").strip() or None
         source_content = data.get("sourceContent")
-        source_filename = data.get("sourceFilename", "notebook_export.py")
+        if source_content is not None:
+            source_content = str(source_content)
+        source_filename = str(data.get("sourceFilename") or "notebook_export.py")
+        source_mode = str(data.get("sourceMode") or "").strip().lower() or (
+            "file" if source_path else "notebook"
+        )
         submission_proxy = bool(data.get("submissionProxy", False))
         note = data.get("note", "")
         if note is None:
@@ -448,7 +725,26 @@ class SubmitHandler(NitroBaseHandler):
             raise tornado.web.HTTPError(
                 400, "Contest, task, and output file are required"
             )
-        if submission_proxy and (not source_path or source_content is not None):
+        if source_mode not in {"notebook", "file", "none"}:
+            raise tornado.web.HTTPError(400, "Invalid source mode")
+        if submission_proxy and (
+            source_mode != "file" or not source_path or source_content is not None
+        ):
+            raise tornado.web.HTTPError(
+                400, "Submission proxy requires a saved Python source file"
+            )
+        if submission_proxy and not source_path.lower().endswith(".py"):
+            raise tornado.web.HTTPError(
+                400, "Submission proxy requires a saved Python source file"
+            )
+        if source_mode == "file":
+            if not source_path:
+                raise tornado.web.HTTPError(400, "Source code is required")
+            if not source_path.lower().endswith(".py"):
+                raise tornado.web.HTTPError(400, "Source file must be a .py file")
+        elif source_mode == "notebook" and source_content is None:
+            raise tornado.web.HTTPError(400, "Source code is required")
+        elif source_mode == "none" and submission_proxy:
             raise tornado.web.HTTPError(
                 400, "Submission proxy requires a saved Python source file"
             )
@@ -472,13 +768,11 @@ class SubmitHandler(NitroBaseHandler):
                 ) or submission.get("prejudgingOutput")
             else:
                 output_fs_path = self.contents_manager._get_os_path(output_path)
-                source_fs_path = (
-                    self.contents_manager._get_os_path(source_path)
-                    if source_path
-                    else None
-                )
+                source_fs_path = None
+                if source_mode == "file" and source_path:
+                    source_fs_path = self.contents_manager._get_os_path(source_path)
 
-                if source_content is not None:
+                if source_mode == "notebook" and source_content is not None:
                     suffix = os.path.splitext(source_filename)[1] or ".py"
                     with tempfile.NamedTemporaryFile(
                         "w", suffix=suffix, delete=False, encoding="utf-8"
@@ -487,7 +781,7 @@ class SubmitHandler(NitroBaseHandler):
                         temp_source_path = handle.name
                     source_fs_path = temp_source_path
 
-                if not source_fs_path:
+                if source_mode != "none" and not source_fs_path:
                     raise tornado.web.HTTPError(400, "Source code is required")
 
                 submission = await asyncio.to_thread(
@@ -556,15 +850,14 @@ class DownloadDataHandler(NitroBaseHandler):
 
         try:
             downloads = await asyncio.to_thread(
-                nitro_cli.download_task_data,
-                auth["cookies"],
-                auth["bearer"],
+                _download_task_data,
+                auth,
                 org,
                 comp,
                 task_id,
-                categories=categories,
-                output_dir=output_fs_dir,
-                force=force,
+                categories,
+                output_fs_dir,
+                force,
             )
         except ValueError as exc:
             raise tornado.web.HTTPError(400, str(exc)) from exc
@@ -593,7 +886,6 @@ def setup_handlers(web_app: Any) -> None:
         (url_path_join(base_url, "nitro-ai-judge", "contests"), ContestsHandler),
         (url_path_join(base_url, "nitro-ai-judge", "tasks"), TasksHandler),
         (url_path_join(base_url, "nitro-ai-judge", "task-data-options"), TaskDataOptionsHandler),
-        (url_path_join(base_url, "nitro-ai-judge", "submission-history"), SubmissionHistoryHandler),
         (url_path_join(base_url, "nitro-ai-judge", "download-data"), DownloadDataHandler),
         (url_path_join(base_url, "nitro-ai-judge", "submit"), SubmitHandler),
     ]

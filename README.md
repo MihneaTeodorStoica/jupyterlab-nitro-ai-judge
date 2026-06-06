@@ -5,11 +5,11 @@ JupyterLab extension that adds a notebook toolbar button, `Submit to Nitro AI Ju
 ## Features
 
 - notebook toolbar button for direct submission flow
-- login prompt backed by `nitro-ai-judge-cli`
+- login prompt backed by `nitro-ai-judge-cli`, including saved token login reuse
 - contest and task loading from Nitro AI Judge
 - task statement and data download into the notebook workspace
 - CSV file picker rooted at the current notebook directory
-- source selection from either a file or the current notebook exported as Python
+- source selection from a Python file, live current-notebook code export, or no source for non-running contests
 - automatic polling until scoring feedback is available
 - results view with total score plus per-subtask score and metric values
 
@@ -17,7 +17,7 @@ JupyterLab extension that adds a notebook toolbar button, `Submit to Nitro AI Ju
 
 - Python 3.10+
 - JupyterLab 4.x
-- `nitro-ai-judge-cli>=1.3.0` available in the same Python environment as JupyterLab
+- `nitro-ai-judge-cli>=1.5.0` available in the same Python environment as JupyterLab
 
 ## Install
 
@@ -52,11 +52,11 @@ python -m build
 
 1. Open a notebook in JupyterLab.
 2. Click `Submit to Nitro AI Judge` in the notebook toolbar.
-3. Log in if prompted.
+3. Log in if prompted; saved Nitro credentials are reused automatically.
 4. Select the contest and task.
 5. Download the task data you need into the notebook workspace.
 6. Pick the output CSV file.
-7. Choose either a source file or the current notebook as the source attachment.
+7. Choose a Python source file, export the current notebook's code cells, or use no source for upcoming or ended contests.
 8. Submit and wait for feedback.
 9. Review the total score and per-subtask metrics in the Nitro panel.
 
@@ -70,7 +70,7 @@ PyPI release flow:
 python -m pip install -U build twine
 python -m build
 python -m twine check dist/*
-git tag v1.3.3
+git tag v1.4.0
 git push origin main --tags
 ```
 
