@@ -11,6 +11,8 @@ import tempfile
 import shutil
 import threading
 import time
+import urllib.error
+import urllib.request
 import zipfile
 from typing import Any
 from pathlib import Path
@@ -34,6 +36,10 @@ def _nitro_cli_uses_token_login() -> bool:
         return len(inspect.signature(nitro_cli.do_login).parameters) == 2
     except (TypeError, ValueError):
         return hasattr(nitro_cli, "save_token_state")
+
+
+def _string_field(value: Any) -> str:
+    return value if isinstance(value, str) else str(value or "")
 
 
 def _load_auth() -> dict[str, Any]:
@@ -559,6 +565,12 @@ def _create_submission_through_proxy(
     source_path: str,
     note: str,
 ) -> dict[str, Any]:
+    proxy_url = str(os.environ.get("NITRO_SUBMISSION_PROXY_URL") or "").strip()
+    if not proxy_url:
+        raise tornado.web.HTTPError(
+            500, "NITRO_SUBMISSION_PROXY_URL is not configured"
+        )
+
     payload: dict[str, Any] = {
         "outputPath": output_path,
         "sourceCodePath": source_path,
@@ -567,13 +579,27 @@ def _create_submission_through_proxy(
     if note:
         payload["note"] = note
 
-    status, body, _ = nitro_cli.api_request_text(
-        path=f"/task/{task_id}/submit",
-        bearer=bearer,
-        method="POST",
+    request = urllib.request.Request(
+        f"{proxy_url.rstrip('/')}/task/{task_id}/submit",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {bearer}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            status = response.status
+            body = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        body = exc.read().decode("utf-8", errors="replace")
+    except urllib.error.URLError as exc:
+        raise tornado.web.HTTPError(
+            502, f"Nitro AI Judge submission proxy request failed: {exc.reason}"
+        ) from exc
+
     parsed = nitro_cli.body_json(body)
 
     if status not in {200, 201}:
@@ -706,8 +732,9 @@ class SubmitHandler(NitroBaseHandler):
         org = data.get("org", "").strip()
         comp = data.get("comp", "").strip()
         task_id = str(data.get("taskId", "")).strip()
-        output_path = data.get("outputPath", "").strip()
-        source_path = str(data.get("sourcePath") or "").strip() or None
+        output_path = _string_field(data.get("outputPath", ""))
+        source_path_raw = _string_field(data.get("sourcePath", ""))
+        source_path = source_path_raw if source_path_raw else None
         source_content = data.get("sourceContent")
         if source_content is not None:
             source_content = str(source_content)
@@ -837,7 +864,7 @@ class DownloadDataHandler(NitroBaseHandler):
         comp = data.get("comp", "").strip()
         task_id = str(data.get("taskId", "")).strip()
         categories = data.get("categories")
-        output_dir = data.get("outputDir", "").strip()
+        output_dir = _string_field(data.get("outputDir", ""))
         force = bool(data.get("force", False))
 
         if not org or not comp or not task_id:
