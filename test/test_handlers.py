@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import types
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -10,24 +9,19 @@ import pytest
 import jupyterlab_nitro_ai_judge.handlers as handlers
 
 
-def test_load_auth_recovers_from_trailing_state_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_auth_uses_naij_state_api(monkeypatch: pytest.MonkeyPatch) -> None:
     state = {
         "cookies": [{"name": "Cookie", "value": "sess"}],
         "access_token": "tok",
         "username": "u",
     }
-    state_file = tmp_path / "state.json"
-    state_file.write_text(json.dumps(state) + "\nTRAILING", encoding="utf-8")
-
-    fake_cli = types.SimpleNamespace(
-        load_state=lambda: (_ for _ in ()).throw(json.JSONDecodeError("extra", "x", 1)),
-        get_auth=lambda loaded: ("cf", "sess", "tok") if loaded == state else None,
-        ensure_fresh_state=lambda loaded: loaded,
-        token_is_expired=lambda *args, **kwargs: False,
-        refresh_saved_tokens=None,
-        STATE_FILE=str(state_file),
+    monkeypatch.setattr(handlers.nitro_state, "load_state", lambda: state)
+    monkeypatch.setattr(handlers.nitro_api, "ensure_fresh_state", lambda loaded: loaded)
+    monkeypatch.setattr(
+        handlers.nitro_api,
+        "get_auth",
+        lambda loaded: ("cf", "sess", "tok") if loaded == state else None,
     )
-    monkeypatch.setattr(handlers, "nitro_cli", fake_cli)
 
     auth = handlers._load_auth()
 

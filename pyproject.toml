@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "jupyterlab-nitro-ai-judge"
-version = "1.6.1"
+version = "1.6.2"
 description = "JupyterLab extension for submitting Nitro AI Judge notebook solutions"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -26,8 +26,8 @@ classifiers = [
 ]
 dependencies = [
   "jupyter_server>=2.0.0,<3",
-  "jupyterlab==4.5.8",
-  "nitro-ai-judge-cli>=1.5.0",
+  "jupyterlab==4.6.2",
+  "nitro-ai-judge-cli>=3.0.2,<4",
 ]
 
 [project.urls]

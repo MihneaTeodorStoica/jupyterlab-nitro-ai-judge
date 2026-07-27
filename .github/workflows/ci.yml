@@ -24,14 +24,19 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install JS dependencies
-        run: npm install
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install Python dependencies
-        run: python -m pip install --upgrade pip build twine hatchling hatch-jupyter-builder jupyterlab
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Test handlers
+        run: uv run --with pytest pytest -q
+
+      - name: Build frontend
+        run: npm run build:prod
 
       - name: Build package
-        run: python -m build
+        run: uv build
 
       - name: Check distributions
-        run: python -m twine check dist/*
+        run: uvx twine check dist/*

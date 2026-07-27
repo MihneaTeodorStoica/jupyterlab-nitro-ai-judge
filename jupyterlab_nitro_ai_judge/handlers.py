@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import os
 import re
@@ -21,7 +20,10 @@ import tornado.web
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
-import nitro_cli
+from nitro_ai_judge_cli import api as nitro_api
+from nitro_ai_judge_cli import contests as nitro_contests
+from nitro_ai_judge_cli import state as nitro_state
+from nitro_ai_judge_cli import submissions as nitro_submissions
 
 
 _PLAYWRIGHT_READY = False
@@ -31,62 +33,22 @@ _CONTEST_CACHE: dict[Any, tuple[float, list[dict[str, Any]]]] = {}
 _TASK_CACHE: dict[Any, tuple[float, list[dict[str, Any]]]] = {}
 
 
-def _nitro_cli_uses_token_login() -> bool:
-    try:
-        return len(inspect.signature(nitro_cli.do_login).parameters) == 2
-    except (TypeError, ValueError):
-        return hasattr(nitro_cli, "save_token_state")
-
-
 def _string_field(value: Any) -> str:
     return value if isinstance(value, str) else str(value or "")
 
 
 def _load_auth() -> dict[str, Any]:
-    load_state = getattr(nitro_cli, "load_state", None)
-    get_auth = getattr(nitro_cli, "get_auth", None)
-    if not callable(load_state) or not callable(get_auth):
-        raise tornado.web.HTTPError(
-            500, "Installed nitro-ai-judge-cli is missing auth helpers"
-        )
+    state = nitro_state.load_state() or {}
+    if state:
+        state = nitro_api.ensure_fresh_state(state) or {}
 
-    try:
-        state = load_state() or {}
-    except json.JSONDecodeError:
-        state = {}
-        state_file = getattr(nitro_cli, "STATE_FILE", None)
-        if isinstance(state_file, str) and os.path.exists(state_file):
-            with open(state_file, encoding="utf-8") as f:
-                raw = f.read().lstrip("\ufeff \t\r\n")
-            try:
-                parsed, _ = json.JSONDecoder().raw_decode(raw)
-            except json.JSONDecodeError:
-                parsed = {}
-            if isinstance(parsed, dict):
-                state = parsed
-    refresh_state = getattr(nitro_cli, "ensure_fresh_state", None)
-    if state and callable(refresh_state):
-        state = refresh_state(state) or state
-
-    auth = get_auth(state)
+    auth = nitro_api.get_auth(state)
     if not auth:
         raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
 
     cf_cookie, session_cookie, bearer = auth
     if not session_cookie and not bearer:
         raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
-
-    token_is_expired = getattr(nitro_cli, "token_is_expired", None)
-    refresh_saved_tokens = getattr(nitro_cli, "refresh_saved_tokens", None)
-    if callable(token_is_expired) and callable(refresh_saved_tokens) and bearer:
-        if token_is_expired(bearer, buffer_seconds=600):
-            refreshed = refresh_saved_tokens(state)
-            if refreshed:
-                state = refreshed
-                auth = get_auth(state)
-                if not auth:
-                    raise tornado.web.HTTPError(401, "Not logged in to Nitro AI Judge")
-                cf_cookie, session_cookie, bearer = auth
 
     return {
         "cookies": (cf_cookie or "", session_cookie or ""),
@@ -100,12 +62,7 @@ def _login(username: str, password: str) -> dict[str, Any]:
     password = str(password or "")
     if not username or not password:
         raise tornado.web.HTTPError(400, "Username and password are required")
-    if not _nitro_cli_uses_token_login():
-        raise tornado.web.HTTPError(
-            500, "Installed nitro-ai-judge-cli is too old for token login"
-        )
-
-    result = nitro_cli.do_login(username, password)
+    result = nitro_api.do_login(username, password)
     if not isinstance(result, dict):
         raise tornado.web.HTTPError(
             502, "Nitro AI Judge login returned an invalid response"
@@ -114,13 +71,7 @@ def _login(username: str, password: str) -> dict[str, Any]:
         message = result.get("error") or "Nitro AI Judge login failed"
         raise tornado.web.HTTPError(401, str(message))
 
-    save_token_state = getattr(nitro_cli, "save_token_state", None)
-    if not callable(save_token_state):
-        raise tornado.web.HTTPError(
-            500, "Installed nitro-ai-judge-cli cannot save token login state"
-        )
-
-    save_token_state(result["tokens"], result.get("username") or username)
+    nitro_api.save_token_state(result["tokens"], result.get("username") or username)
     return _load_auth()
 
 
@@ -197,11 +148,11 @@ def _normalize_task_data_category(category: str) -> str:
     normalized = aliases.get(normalized, normalized)
     if normalized == "pre_judging_script":
         return normalized
-    return nitro_cli.normalize_task_file_category(normalized)
+    return nitro_contests.normalize_task_file_category(normalized)
 
 
 def _task_page_has_prejudging_script(cookies: tuple[str, str], org: str, comp: str, task_id: str) -> bool:
-    status, body, _ = nitro_cli.request_text(
+    status, body, _ = nitro_api.request_text(
         path=f"/competitions/{org}/{comp}/{task_id}/view",
         cookies=cookies,
         timeout=30,
@@ -215,7 +166,7 @@ def _task_page_has_prejudging_script(cookies: tuple[str, str], org: str, comp: s
 def _task_page_prejudging_href(
     cookies: tuple[str, str], org: str, comp: str, task_id: str
 ) -> str | None:
-    status, body, _ = nitro_cli.request_text(
+    status, body, _ = nitro_api.request_text(
         path=f"/competitions/{org}/{comp}/{task_id}/view",
         cookies=cookies,
         timeout=30,
@@ -245,7 +196,9 @@ def _task_page_prejudging_href(
 def _load_task_data_options(
     auth: dict[str, Any], org: str, comp: str, task_id: str
 ) -> list[dict[str, Any]]:
-    items = nitro_cli.get_task_data_options(auth["cookies"], auth["bearer"], org, comp, task_id)
+    items = nitro_contests.get_task_data_options(
+        auth["cookies"], auth["bearer"], org, comp, task_id
+    )
     if not any(item.get("category") == "pre_judging_script" for item in items):
         if _task_page_has_prejudging_script(auth["cookies"], org, comp, task_id):
             items.append(
@@ -281,11 +234,13 @@ def _download_task_data(
     if not normalized_categories:
         raise RuntimeError("No downloadable task data files found")
 
-    task_file_links = nitro_cli.load_task_file_links(auth["cookies"], org, comp, task_id)
+    task_file_links = nitro_contests.load_task_file_links(
+        auth["cookies"], org, comp, task_id
+    )
     results: list[dict[str, Any]] = []
     for category in normalized_categories:
         if category == "statement":
-            body = nitro_cli.task_statement_markdown(
+            body = nitro_contests.task_statement_markdown(
                 auth["cookies"], auth["bearer"], org, comp, task_id
             )
             headers: dict[str, str] = {}
@@ -295,12 +250,12 @@ def _download_task_data(
                 if not explicit_categories:
                     continue
                 raise RuntimeError("Could not find a pre-judging script download link")
-            status, body, headers = nitro_cli.request(
-                path=nitro_cli.request_path_from_href(href),
+            status, body, headers = nitro_api.request(
+                path=nitro_contests.request_path_from_href(href),
                 cookies=auth["cookies"],
                 timeout=180,
             )
-            if status != 200 or nitro_cli.response_is_html(body, headers):
+            if status != 200 or nitro_contests.response_is_html(body, headers):
                 if not explicit_categories:
                     continue
                 preview = body.decode("utf-8", errors="replace")
@@ -308,7 +263,7 @@ def _download_task_data(
                     f"Could not download {category}: HTTP {status}: {preview[:200]}"
                 )
         else:
-            status, body, headers = nitro_cli.download_task_file(
+            status, body, headers = nitro_contests.download_task_file(
                 auth["cookies"],
                 auth["bearer"],
                 org,
@@ -317,7 +272,7 @@ def _download_task_data(
                 category,
                 task_file_links,
             )
-            if status != 200 or nitro_cli.response_is_html(body, headers):
+            if status != 200 or nitro_contests.response_is_html(body, headers):
                 if not explicit_categories:
                     continue
                 preview = body.decode("utf-8", errors="replace")
@@ -325,7 +280,7 @@ def _download_task_data(
                     f"Could not download {category}: HTTP {status}: {preview[:200]}"
                 )
 
-        path = nitro_cli.write_task_file(
+        path = nitro_contests.write_task_file(
             body,
             headers,
             category,
@@ -471,7 +426,7 @@ def _load_accessible_competitions(auth: dict[str, Any]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
 
     while True:
-        status, body, _ = nitro_cli.api_request_text(
+        status, body, _ = nitro_api.api_request_text(
             path="/competitions",
             bearer=auth["bearer"],
             params={"page": page, "page_size": page_size},
@@ -481,8 +436,8 @@ def _load_accessible_competitions(auth: dict[str, Any]) -> list[dict[str, Any]]:
                 raise tornado.web.HTTPError(401, "Nitro AI Judge login expired")
             break
 
-        data = nitro_cli.body_json(body)
-        parsed = nitro_cli.list_payload(data, "competitions", "items", "data")
+        data = nitro_api.body_json(body)
+        parsed = nitro_api.list_payload(data, "competitions", "items", "data")
         if parsed is None:
             if isinstance(data, list):
                 return [
@@ -497,7 +452,7 @@ def _load_accessible_competitions(auth: dict[str, Any]) -> list[dict[str, Any]]:
             for item in parsed
             if isinstance(item, dict)
         )
-        last_page = nitro_cli.int_payload(
+        last_page = nitro_api.int_payload(
             data,
             "lastPage",
             "last_page",
@@ -512,7 +467,7 @@ def _load_accessible_competitions(auth: dict[str, Any]) -> list[dict[str, Any]]:
     # Older deployments may not expose the access-scoped API endpoint.
     return [
         item
-        for item in nitro_cli.load_competitions(
+        for item in nitro_contests.load_competitions(
             auth["cookies"],
             auth["bearer"],
             page=None,
@@ -550,7 +505,9 @@ def _load_tasks_cached(
             return cached
 
     try:
-        items = nitro_cli.load_tasks(auth["cookies"], auth["bearer"], org, comp)
+        items = nitro_contests.load_tasks(
+            auth["cookies"], auth["bearer"], org, comp
+        )
     except RuntimeError as exc:
         if _is_login_redirect_error(exc):
             raise tornado.web.HTTPError(401, "Nitro AI Judge login expired") from exc
@@ -600,7 +557,7 @@ def _create_submission_through_proxy(
             502, f"Nitro AI Judge submission proxy request failed: {exc.reason}"
         ) from exc
 
-    parsed = nitro_cli.body_json(body)
+    parsed = nitro_api.body_json(body)
 
     if status not in {200, 201}:
         message = "Nitro AI Judge submission proxy failed"
@@ -632,7 +589,7 @@ def _poll_submission_feedback(
     comp: str,
     task_id: str,
 ) -> dict[str, Any]:
-    return nitro_cli.poll_submission_feedback(
+    return nitro_submissions.poll_submission_feedback(
         cookies,
         bearer,
         submission_id,
@@ -667,7 +624,7 @@ class StatusHandler(NitroBaseHandler):
             {
                 "loggedIn": logged_in,
                 "username": (auth.get("state") or {}).get("username"),
-                "tokenLogin": _nitro_cli_uses_token_login(),
+                "tokenLogin": True,
                 "authenticated": logged_in,
             }
         )
@@ -812,7 +769,7 @@ class SubmitHandler(NitroBaseHandler):
                     raise tornado.web.HTTPError(400, "Source code is required")
 
                 submission = await asyncio.to_thread(
-                    nitro_cli.create_submission,
+                    nitro_submissions.create_submission,
                     auth["cookies"],
                     auth["bearer"],
                     org,
